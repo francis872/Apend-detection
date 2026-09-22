@@ -13,7 +13,58 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install --upgrade pip
-      - run: pip install -e . pytest httpx
-      - run: pytest -q
-      - run: python -c "import geo_outliers; from geo_outliers.api import app; print(app.title)"
+
+      - name: Run diagnostic suite
+        shell: bash
+        run: |
+          set +e
+          : > diagnostic.log
+
+          echo "== Python ==" >> diagnostic.log
+          python --version >> diagnostic.log 2>&1
+
+          echo "" >> diagnostic.log
+          echo "== Pip upgrade ==" >> diagnostic.log
+          python -m pip install --upgrade pip >> diagnostic.log 2>&1
+          PIP_UPGRADE=$?
+
+          echo "" >> diagnostic.log
+          echo "== Install project ==" >> diagnostic.log
+          pip install -e . pytest httpx >> diagnostic.log 2>&1
+          INSTALL=$?
+
+          echo "" >> diagnostic.log
+          echo "== Import backend ==" >> diagnostic.log
+          python - <<'PY' >> diagnostic.log 2>&1
+          import traceback
+          try:
+              import geo_outliers
+              print("geo_outliers import OK")
+              from geo_outliers.api import app
+              print("api import OK:", app.title, app.version)
+          except Exception:
+              traceback.print_exc()
+              raise
+          PY
+          IMPORT=$?
+
+          echo "" >> diagnostic.log
+          echo "== Pytest ==" >> diagnostic.log
+          pytest -q >> diagnostic.log 2>&1
+          TESTS=$?
+
+          echo "" >> diagnostic.log
+          echo "== Status ==" >> diagnostic.log
+          echo "pip_upgrade=$PIP_UPGRADE install=$INSTALL import=$IMPORT tests=$TESTS" >> diagnostic.log
+
+          cat diagnostic.log
+          if [ "$INSTALL" -ne 0 ] || [ "$IMPORT" -ne 0 ] || [ "$TESTS" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Upload diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apend-diagnostic
+          path: diagnostic.log
