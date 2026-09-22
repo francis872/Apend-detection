@@ -9,7 +9,7 @@
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px Inter,system-ui,sans-serif}main{max-width:1450px;margin:auto;padding:26px}
 .top,.head,.actions{display:flex;justify-content:space-between;gap:12px;align-items:center}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:14px}
 h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;font-size:11px}.muted,.k{color:var(--muted)}button,.upload,select,input{border:1px solid var(--line);background:#12231f;color:var(--txt);padding:9px 12px;border-radius:10px}.upload{background:var(--a);color:#07100e;font-weight:800;cursor:pointer}#file{display:none}
-.grid{display:grid;gap:12px}.stats{grid-template-columns:repeat(5,1fr)}.charts{grid-template-columns:1fr 1fr}.v{font-size:24px;font-weight:800;margin-top:5px}.chart{height:280px}
+.grid{display:grid;gap:12px}.stats{grid-template-columns:repeat(5,1fr)}.charts{grid-template-columns:1fr 1fr}.v{font-size:24px;font-weight:800;margin-top:5px}.chart{height:300px}.chartNote{font-size:11px;color:var(--muted);margin-top:6px}
 #map{height:520px;border-radius:12px}.mapLegend{background:#0f1c19;color:#edf7f3;padding:10px 12px;border-radius:10px;border:1px solid #20332e;line-height:1.7;box-shadow:0 4px 18px rgba(0,0,0,.25)}.mapLegend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;border:1px solid rgba(255,255,255,.55)}.mapStats{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mapStat{padding:7px 10px;border:1px solid var(--line);background:#091411;border-radius:10px;font-size:12px}.progress{height:12px;background:#091411;border-radius:8px;overflow:hidden}.bar{height:100%;width:0;background:var(--a);transition:.3s}
 .weights{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.weights input{width:100%}.table{overflow:auto;max-height:430px}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{color:var(--muted)}
 .filters{display:flex;gap:8px;flex-wrap:wrap}.downloads a{color:var(--a);margin-right:12px}.compare{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.pill{background:#091411;padding:10px;border-radius:10px;border:1px solid var(--line)}
@@ -33,7 +33,7 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 <div class="card"><b>Histograma + PDF + áreas 90/95/99</b><div class="chart"><canvas id="pdfChart"></canvas></div></div>
 <div class="card"><b>Primera derivada f′(x)</b><div class="chart"><canvas id="d1Chart"></canvas></div></div>
 <div class="card"><b>Segunda derivada f″(x) · puntos de inflexión</b><div class="chart"><canvas id="d2Chart"></canvas></div><div class="k" id="infl"></div></div>
-<div class="card"><b>Comparación entre variables</b><div id="comparison" class="compare"></div></div>
+<div class="card"><b>Niveles de anomalía · 90 / 95 / 99</b><div class="chart"><canvas id="levelChart"></canvas></div></div><div class="card"><b>Comparación entre variables</b><div id="comparison" class="compare"></div></div>
 </section>
 
 <section class="card"><div class="head"><div><b>Mapa interactivo</b><div class="k">Normal · 90 · 95 · 99 · probable_noise</div></div><div class="filters">
@@ -69,14 +69,70 @@ let r=await fetch('/analyze',{method:'POST',body:fd}),j=await r.json();if(!r.ok)
 async function poll(id){let timer=setInterval(async()=>{let r=await fetch('/jobs/'+id+'/progress'),p=await r.json();$('bar').style.width=p.percent+'%';$('pct').textContent=p.percent+'%';$('stage').textContent=p.stage;$('status').textContent=p.message;if(p.stage==='complete'){clearInterval(timer);let j=await fetch('/jobs/'+id+'/result').then(r=>r.json());render(j)}if(p.stage==='failed')clearInterval(timer)},800)}
 
 function killCharts(){charts.forEach(c=>c.destroy());charts=[]}
-function render(j){let s=j.summary.detector;$('rows').textContent=fmt(s.rows);$('best').textContent=s.best_distribution.toUpperCase();$('o99').textContent=fmt(s.counts['99']);$('noise').textContent=fmt(s.noise_candidates);$('elapsed').textContent='completo';killCharts();
-let p=j.plot,labels=p.x.map(fmt),ints=p.intervals||{},shade=p.x.map(x=>{let a=ints['99'];return a&&x>=a.lower&&x<=a.upper?Math.max(...p.pdf)*.08:null});
-charts.push(new Chart($('pdfChart'),{data:{labels,datasets:[{type:'bar',label:'Histograma',data:p.histogram},{type:'line',label:'PDF '+p.distribution,data:p.pdf,pointRadius:0},{type:'line',label:'Área central 99%',data:shade,fill:true,pointRadius:0}]},options:{maintainAspectRatio:false}}));
-charts.push(new Chart($('d1Chart'),{type:'line',data:{labels,datasets:[{label:"f′(x)",data:p.first_derivative,pointRadius:0}]},options:{maintainAspectRatio:false}}));
-charts.push(new Chart($('d2Chart'),{type:'line',data:{labels,datasets:[{label:"f″(x)",data:p.second_derivative,pointRadius:0}]},options:{maintainAspectRatio:false}}));$('infl').textContent='Inflexiones: '+(p.inflection_points||[]).map(fmt).join(' · ');
-mapData=j.map_points||[];drawMap();$('anomalyRows').innerHTML=(j.anomalies||[]).map(a=>'<tr><td>'+a.id+'</td><td>'+fmt(a.outlier_score)+'</td><td>'+fmt(a.probability_tail_area)+'</td><td>'+fmt(a.score_mahal)+'</td><td>'+fmt(a.score_probability)+'</td><td>'+fmt(a.score_spd)+'</td><td>'+fmt(a.score_procrustes)+'</td><td>'+fmt(a.score_spatial)+'</td><td>'+fmt(a.score_temporal)+'</td><td>'+fmt(a.distance_to_inflection)+'</td><td>'+a.consensus_methods+'</td><td>'+a.anomaly_reason+'</td><td>'+a.record_status+'</td></tr>').join('');
-$('comparison').innerHTML=(j.comparison||[]).map(v=>'<div class="pill"><b>'+v.variable+'</b><br><span class="k">'+(v.status==='ok'?(v.distribution+' · KS '+fmt(v.ks)+' · P95 '+fmt(v.probability_anomalies_95)):v.status)+'</span></div>').join('');
-$('downloads').innerHTML=Object.entries(j.outputs).map(([k,v])=>'<a href="'+v+'">'+k+'</a>').join('');}
+function render(j){
+  let s=j.summary.detector;
+  $('rows').textContent=fmt(s.rows);
+  $('best').textContent=s.best_distribution.toUpperCase();
+  $('o99').textContent=fmt(s.counts['99']);
+  $('noise').textContent=fmt(s.noise_candidates);
+  $('elapsed').textContent='completo';
+  killCharts();
+
+  const p=j.plot, labels=p.x.map(fmt), ints=p.intervals||{};
+  const maxPdf=Math.max(...p.pdf,0);
+  const area90=p.x.map(x=>ints['90']&&x>=ints['90'].lower&&x<=ints['90'].upper?maxPdf*.10:null);
+  const area95=p.x.map(x=>ints['95']&&x>=ints['95'].lower&&x<=ints['95'].upper?maxPdf*.07:null);
+  const area99=p.x.map(x=>ints['99']&&x>=ints['99'].lower&&x<=ints['99'].upper?maxPdf*.04:null);
+
+  charts.push(new Chart($('pdfChart'),{
+    data:{labels,datasets:[
+      {type:'bar',label:'Histograma',data:p.histogram,backgroundColor:'rgba(77,163,255,.28)',borderColor:'rgba(77,163,255,.55)',borderWidth:1},
+      {type:'line',label:'Área central 90%',data:area90,fill:true,pointRadius:0,borderWidth:0,backgroundColor:'rgba(240,196,25,.16)'},
+      {type:'line',label:'Área central 95%',data:area95,fill:true,pointRadius:0,borderWidth:0,backgroundColor:'rgba(255,140,66,.14)'},
+      {type:'line',label:'Área central 99%',data:area99,fill:true,pointRadius:0,borderWidth:0,backgroundColor:'rgba(255,59,48,.12)'},
+      {type:'line',label:'PDF '+p.distribution.toUpperCase(),data:p.pdf,pointRadius:0,borderWidth:2,borderColor:'#8fb9ff'}
+    ]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:'#cfe0da'}}},scales:{x:{ticks:{color:'#8da49d',maxTicksLimit:10}},y:{ticks:{color:'#8da49d'}}}}
+  }));
+
+  charts.push(new Chart($('d1Chart'),{
+    type:'line',
+    data:{labels,datasets:[{label:"f′(x)",data:p.first_derivative,pointRadius:0,borderWidth:2,borderColor:'#f4c96b'}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:'#cfe0da'}}},scales:{x:{ticks:{color:'#8da49d',maxTicksLimit:10}},y:{ticks:{color:'#8da49d'}}}}
+  }));
+
+  const inflSet=(p.inflection_points||[]);
+  const inflPoints=inflSet.map(v=>{
+    let i=0,d=Infinity;
+    p.x.forEach((x,idx)=>{let dd=Math.abs(x-v);if(dd<d){d=dd;i=idx}});
+    return {x:labels[i],y:p.second_derivative[i]};
+  });
+  charts.push(new Chart($('d2Chart'),{
+    data:{labels,datasets:[
+      {type:'line',label:"f″(x)",data:p.second_derivative,pointRadius:0,borderWidth:2,borderColor:'#e98bb8'},
+      {type:'scatter',label:'Puntos de inflexión',data:inflPoints,pointRadius:5,pointHoverRadius:7,backgroundColor:'#ff3b30'}
+    ]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:'#cfe0da'}}},scales:{x:{ticks:{color:'#8da49d',maxTicksLimit:10}},y:{ticks:{color:'#8da49d'}}}}
+  }));
+  $('infl').textContent='Inflexiones: '+(p.inflection_points||[]).map(fmt).join(' · ');
+
+  const c90=Number(s.counts['90']||0),c95=Number(s.counts['95']||0),c99=Number(s.counts['99']||0);
+  const exclusive90=Math.max(0,c90-c95), exclusive95=Math.max(0,c95-c99), exclusive99=c99;
+  charts.push(new Chart($('levelChart'),{
+    type:'bar',
+    data:{
+      labels:['90–<95','95–<99','99%'],
+      datasets:[{label:'Observaciones por nivel máximo',data:[exclusive90,exclusive95,exclusive99],backgroundColor:['#f0c419','#ff8c42','#ff3b30']}]
+    },
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:'#cfe0da'}}},scales:{x:{ticks:{color:'#8da49d'}},y:{beginAtZero:true,ticks:{color:'#8da49d'}}}}
+  }));
+
+  mapData=j.map_points||[];
+  drawMap();
+  $('anomalyRows').innerHTML=(j.anomalies||[]).map(a=>'<tr><td>'+a.id+'</td><td>'+fmt(a.outlier_score)+'</td><td>'+fmt(a.probability_tail_area)+'</td><td>'+fmt(a.score_mahal)+'</td><td>'+fmt(a.score_probability)+'</td><td>'+fmt(a.score_spd)+'</td><td>'+fmt(a.score_procrustes)+'</td><td>'+fmt(a.score_spatial)+'</td><td>'+fmt(a.score_temporal)+'</td><td>'+fmt(a.distance_to_inflection)+'</td><td>'+a.consensus_methods+'</td><td>'+a.anomaly_reason+'</td><td>'+a.record_status+'</td></tr>').join('');
+  $('comparison').innerHTML=(j.comparison||[]).map(v=>'<div class="pill"><b>'+v.variable+'</b><br><span class="k">'+(v.status==='ok'?(v.distribution+' · KS '+fmt(v.ks)+' · P95 '+fmt(v.probability_anomalies_95)):v.status)+'</span></div>').join('');
+  $('downloads').innerHTML=Object.entries(j.outputs).map(([k,v])=>'<a href="'+v+'">'+k+'</a>').join('');
+}
 
 function drawMap(){
   layer.clearLayers();
