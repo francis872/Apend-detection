@@ -28,11 +28,14 @@ def detect_outliers(
     component_weights:dict[str,float]|None=None,
 ):
     x=gdf.copy()
-    features=features or [c for c in DEFAULT_FEATURES if c in x.columns]
     if probability_feature not in x.columns:
         raise KeyError(f'{probability_feature} not found')
+    if features is None:
+        preferred=[c for c in DEFAULT_FEATURES if c in x.columns and pd.to_numeric(x[c],errors='coerce').notna().sum()>=30]
+        numeric_all=[c for c in x.columns if c!='geometry' and pd.to_numeric(x[c],errors='coerce').notna().sum()>=30]
+        features=list(dict.fromkeys(preferred + numeric_all))[:8]
     if len(features)<2:
-        raise ValueError('At least two numeric features are required')
+        raise ValueError('At least two usable numeric features are required for the multivariate detector')
 
     num=x[features].apply(pd.to_numeric,errors='coerce').fillna(
         x[features].apply(pd.to_numeric,errors='coerce').median()
