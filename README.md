@@ -116,3 +116,12 @@ La interfaz ejecuta el analisis, representa histograma + PDF + `f'(x)` + `f''(x)
 ### Pipeline 1.0
 
 `Append -> Cleaning -> Probability Fit -> Gaussian Quadrature -> Derivatives/Inflection -> Mahalanobis -> SPD -> Procrustes -> Spatial -> Temporal -> Explainable Consensus -> 90/95/99 -> Noise validation -> Export/Report`
+
+
+## Apend Detection 1.1
+
+La interfaz localhost incorpora mapa Leaflet, inspeccion previa de Shapefiles, selector de variable, comparacion multivariable, graficos separados de PDF/f'/f'', areas centrales, tabla explicable de anomalias, pesos configurables, jobs con progreso, historial SQLite, bootstrap de estabilidad, ablation sensitivity, validacion de ZIP/CRS/tamano, reporte HTML y metadata reproducible con SHA-256.
+
+Los jobs se persisten localmente en `runtime/apend_detection.sqlite3`. Los resultados de cada corrida permanecen en `runtime/jobs/<job_id>/results`.
+
+Endpoints principales: `/inspect`, `/analyze`, `/jobs/{id}/progress`, `/jobs/{id}/result`, `/history`, `/health`.
