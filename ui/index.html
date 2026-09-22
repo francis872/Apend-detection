@@ -16,10 +16,10 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 @media(max-width:900px){.stats,.charts,.weights,.compare{grid-template-columns:1fr 1fr}}@media(max-width:600px){.stats,.charts,.weights,.compare{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
 </style></head><body><main>
 <div class="top"><div><div class="eyebrow">GEOSPATIAL STATISTICAL INTELLIGENCE</div><h1>Apend Detection 1.1</h1><div class="muted">Probability · Quadrature · Derivatives · SPD · Procrustes · Spatial · Temporal</div></div>
-<div class="actions"><label class="upload">Seleccionar ZIP<input id="file" type="file" accept=".zip" multiple></label><button id="inspect">Inspeccionar</button><button id="run">Ejecutar</button></div></div>
+<div class="actions"><label class="upload">Seleccionar ZIP<input id="file" type="file" accept=".zip" multiple></label><button id="inspect" disabled>Inspeccionar</button><button id="run" disabled>Ejecutar</button></div></div>
 
-<section class="card"><div class="head"><div><b>Configuración</b><div class="k">Inspecciona primero los ZIP para detectar variables numéricas.</div></div><div><select id="mode"><option value="default">Default</option><option value="advanced">Advanced</option></select></div></div>
-<div class="actions" style="justify-content:flex-start;margin-top:10px"><label>Variable principal <select id="variable"><option>FRP</option></select></label><label>Comparar <select id="compareVars" multiple size="4"></select></label></div>
+<section class="card"><div class="head"><div><b>Configuración</b><div class="k">Selecciona uno o más ZIP Shapefile. La inspección comienza automáticamente.</div></div><div><select id="mode"><option value="default">Default</option><option value="advanced">Advanced</option></select></div></div>
+<div id="selectedFiles" class="k" style="margin-top:10px">Ningún archivo seleccionado.</div><div class="actions" style="justify-content:flex-start;margin-top:10px"><label>Variable principal <select id="variable"><option>FRP</option></select></label><label>Comparar <select id="compareVars" multiple size="4"></select></label></div>
 <div class="weights" id="weights" style="display:none;margin-top:12px"></div></section>
 
 <section class="card"><div class="head"><b id="stage">Listo</b><span id="pct">0%</span></div><div class="progress"><div class="bar" id="bar"></div></div><div class="k" id="status">Selecciona los archivos y pulsa Inspeccionar.</div></section>
@@ -61,12 +61,77 @@ $('weights').innerHTML=Object.entries(weightNames).map(([k,v])=>'<label>'+k.repl
 $('mode').onchange=()=>$('weights').style.display=$('mode').value==='advanced'?'grid':'none';
 
 function formFiles(){let fd=new FormData();for(const f of $('file').files)fd.append('files',f);return fd}
-$('inspect').onclick=async()=>{if(!$('file').files.length)return alert('Selecciona ZIP Shapefile');$('status').textContent='Inspeccionando archivos…';let r=await fetch('/inspect',{method:'POST',body:formFiles()}),j=await r.json();if(!r.ok)return $('status').textContent=j.detail||'Error';$('variable').innerHTML=j.numeric_variables.map(v=>'<option>'+v+'</option>').join('');$('compareVars').innerHTML=j.numeric_variables.map(v=>'<option selected>'+v+'</option>').join('');if(j.numeric_variables.includes('FRP'))$('variable').value='FRP';$('status').textContent=j.rows+' registros · CRS '+(j.crs||'sin CRS')+' · '+j.numeric_variables.length+' variables numéricas.'};
 
-$('run').onclick=async()=>{if(!$('file').files.length)return alert('Selecciona archivos');let fd=formFiles();fd.append('probability_feature',$('variable').value);fd.append('variables',[...$('compareVars').selectedOptions].map(o=>o.value).join(','));fd.append('noise_level','99');fd.append('quadrature_order','48');if($('mode').value==='advanced'){let w={};document.querySelectorAll('[data-weight]').forEach(i=>w[i.dataset.weight]=+i.value);fd.append('weights_json',JSON.stringify(w))}
-let r=await fetch('/analyze',{method:'POST',body:fd}),j=await r.json();if(!r.ok)return $('status').textContent=j.detail||'Error';poll(j.job_id)};
+function humanSize(bytes){if(bytes<1024)return bytes+' B';if(bytes<1024*1024)return (bytes/1024).toFixed(1)+' KB';return (bytes/1024/1024).toFixed(1)+' MB'}
 
-async function poll(id){let timer=setInterval(async()=>{let r=await fetch('/jobs/'+id+'/progress'),p=await r.json();$('bar').style.width=p.percent+'%';$('pct').textContent=p.percent+'%';$('stage').textContent=p.stage;$('status').textContent=p.message;if(p.stage==='complete'){clearInterval(timer);let j=await fetch('/jobs/'+id+'/result').then(r=>r.json());render(j)}if(p.stage==='failed')clearInterval(timer)},800)}
+function postWithProgress(url,form,onProgress){
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();
+    xhr.open('POST',url);
+    xhr.upload.onprogress=e=>{if(e.lengthComputable&&onProgress)onProgress(Math.round(e.loaded/e.total*100))};
+    xhr.onload=()=>{
+      let data={};
+      try{data=JSON.parse(xhr.responseText||'{}')}catch{}
+      if(xhr.status>=200&&xhr.status<300)resolve(data);
+      else reject(new Error(data.detail||('HTTP '+xhr.status)));
+    };
+    xhr.onerror=()=>reject(new Error('No se pudo conectar con el backend.'));
+    xhr.send(form);
+  });
+}
+
+async function inspectSelected(){
+  if(!$('file').files.length)return;
+  $('inspect').disabled=true;$('run').disabled=true;
+  $('stage').textContent='upload';
+  $('status').textContent='Subiendo ZIP para inspección…';
+  $('bar').style.width='0%';$('pct').textContent='0%';
+  try{
+    const j=await postWithProgress('/inspect',formFiles(),p=>{
+      $('bar').style.width=p+'%';$('pct').textContent=p+'%';$('status').textContent='Subiendo ZIP… '+p+'%';
+    });
+    $('variable').innerHTML=j.numeric_variables.map(v=>'<option>'+v+'</option>').join('');
+    $('compareVars').innerHTML=j.numeric_variables.map(v=>'<option selected>'+v+'</option>').join('');
+    if(j.numeric_variables.includes('FRP'))$('variable').value='FRP';
+    $('stage').textContent='inspected';$('bar').style.width='100%';$('pct').textContent='100%';
+    $('status').textContent='ZIP leído correctamente · '+j.rows+' registros · CRS '+(j.crs||'sin CRS')+' · '+j.numeric_variables.length+' variables numéricas.';
+    $('run').disabled=!j.valid;
+  }catch(e){
+    $('stage').textContent='error';$('status').textContent='Error al inspeccionar: '+e.message;
+    $('bar').style.width='0%';$('pct').textContent='0%';
+  }finally{$('inspect').disabled=false}
+}
+
+$('file').addEventListener('change',()=>{
+  const fs=[...$('file').files];
+  $('selectedFiles').innerHTML=fs.length?'<b>Seleccionados:</b> '+fs.map(f=>f.name+' ('+humanSize(f.size)+')').join(' · '):'Ningún archivo seleccionado.';
+  $('inspect').disabled=!fs.length;
+  $('run').disabled=true;
+  if(fs.length)inspectSelected();
+});
+
+$('inspect').onclick=inspectSelected;
+
+$('run').onclick=async()=>{
+  if(!$('file').files.length)return alert('Selecciona archivos');
+  $('run').disabled=true;$('stage').textContent='upload';$('status').textContent='Subiendo dataset para análisis…';
+  let fd=formFiles();
+  fd.append('probability_feature',$('variable').value);
+  fd.append('variables',[...$('compareVars').selectedOptions].map(o=>o.value).join(','));
+  fd.append('noise_level','99');fd.append('quadrature_order','48');
+  if($('mode').value==='advanced'){let w={};document.querySelectorAll('[data-weight]').forEach(i=>w[i.dataset.weight]=+i.value);fd.append('weights_json',JSON.stringify(w))}
+  try{
+    const j=await postWithProgress('/analyze',fd,p=>{
+      $('bar').style.width=p+'%';$('pct').textContent=p+'%';$('status').textContent='Subiendo dataset… '+p+'%';
+    });
+    poll(j.job_id);
+  }catch(e){
+    $('stage').textContent='error';$('status').textContent='Error al subir para análisis: '+e.message;
+    $('run').disabled=false;
+  }
+};
+
+async function poll(id){let timer=setInterval(async()=>{let r=await fetch('/jobs/'+id+'/progress'),p=await r.json();$('bar').style.width=p.percent+'%';$('pct').textContent=p.percent+'%';$('stage').textContent=p.stage;$('status').textContent=p.message;if(p.stage==='complete'){clearInterval(timer);let j=await fetch('/jobs/'+id+'/result').then(r=>r.json());render(j);$('run').disabled=false}if(p.stage==='failed'){clearInterval(timer);$('run').disabled=false}},800)}
 
 function killCharts(){charts.forEach(c=>c.destroy());charts=[]}
 function render(j){
