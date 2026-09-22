@@ -12,6 +12,7 @@ from .quadrature import quadrature_tail_score, confidence_interval_areas
 from .geometry import local_spd_scores, procrustes_neighborhood_scores
 from .spatial import spatial_validation
 from .temporal import temporal_validation
+from .derivatives import observation_derivative_features
 
 DEFAULT_FEATURES=['BRIGHTNESS','BRIGHT_T31','FRP','SCAN','TRACK']
 
@@ -71,6 +72,7 @@ def detect_outliers(
 
     spatial,spatial_meta=spatial_validation(coords,raw,k=12)
     temporal,temporal_meta=temporal_validation(x,probability_feature)
+    derivative_features,derivative_meta=observation_derivative_features(raw,best['distribution'],params)
 
     components=pd.DataFrame({
         'score_mahal':_pct_rank(mahal),
@@ -88,6 +90,7 @@ def detect_outliers(
     for c in components: x[c]=components[c]
     x['probability_tail_area']=quad_tail
     x['probability_quadrature_score']=quad_score
+    for name,values in derivative_features.items(): x[name]=values
     x['outlier_score']=ensemble
 
     thresholds={}
@@ -125,6 +128,7 @@ def detect_outliers(
         'gaussian_quadrature':{'method':'Gauss-Legendre','order':quadrature_order,
             'confidence_interval_areas':areas,'tail_score':'-log10(two-sided tail area)'},
         'spatial_validation':spatial_meta,'temporal_validation':temporal_meta,
+        'derivative_analysis':derivative_meta,
         'ensemble_weights':dict(zip(component_cols,weights.tolist())),
         'thresholds':thresholds,
         'counts':{str(p):int(x[f'outlier_{p}'].sum()) for p in thresholds},
