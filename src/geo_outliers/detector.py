@@ -25,6 +25,7 @@ def detect_outliers(
     gdf:gpd.GeoDataFrame, features:list[str]|None=None, probability_feature:str='FRP',
     confidence_levels:tuple[float,...]=(.90,.95,.99), spd_k:int=25,
     procrustes_k:int=12, max_geometry_rows:int=20000, quadrature_order:int=48,
+    component_weights:dict[str,float]|None=None,
 ):
     x=gdf.copy()
     features=features or [c for c in DEFAULT_FEATURES if c in x.columns]
@@ -83,7 +84,11 @@ def detect_outliers(
         'score_temporal':temporal,
     })
     # Probability remains central while spatial and temporal context add validation.
-    weights=np.array([.20,.25,.18,.10,.17,.10])
+    default_weights={'score_mahal':.20,'score_probability':.25,'score_spd':.18,'score_procrustes':.10,'score_spatial':.17,'score_temporal':.10}
+    chosen=default_weights | (component_weights or {})
+    weights=np.array([max(0.0,float(chosen.get(col,0.0))) for col in components.columns])
+    if weights.sum()<=0: raise ValueError('At least one ensemble weight must be positive')
+    weights=weights/weights.sum()
     ensemble=components.to_numpy()@weights
 
     x=x.reset_index(drop=True)
@@ -134,7 +139,8 @@ def detect_outliers(
         'counts':{str(p):int(x[f'outlier_{p}'].sum()) for p in thresholds},
         'noise_candidates':int(x['noise_candidate'].sum()),
         'strong_consensus_count':int((x['consensus_methods']>=3).sum()),
-        'note':'Anomaly != noise. Noise requires 99% ensemble level plus >=3 independent high-score methods.'
+        'note':'Anomaly != noise. Noise requires 99% ensemble level plus >=3 independent high-score methods.',
+        '_components_for_validation':components.to_dict(orient='list')
     }
     return x,summary,fits
 
