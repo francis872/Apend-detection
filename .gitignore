@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+reports/*.png
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+.DS_Store
