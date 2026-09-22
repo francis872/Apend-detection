@@ -19,7 +19,10 @@ def build_report(cleaning: dict, summary: dict) -> str:
         if p in q:
             a=q[p]
             lines.append(f"- {p}%: area={a['quadrature_area']:.8f}, target={a['target_area']:.2f}, error={a['absolute_error']:.3e}, interval=[{a['lower']:.6g}, {a['upper']:.6g}]")
-    lines += ["","## Detection"]
+    lines += ["","## Differential analysis",
+        f"- Inflection points: {summary.get('derivative_analysis',{}).get('inflection_points',[])}",
+        f"- Derivative method: {summary.get('derivative_analysis',{}).get('method','n/a')}",
+        "","## Detection"]
     for p,c in summary.get("counts",{}).items():
         lines.append(f"- Outliers {p}%: {c:,}")
     lines += [
