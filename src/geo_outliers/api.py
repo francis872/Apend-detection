@@ -24,7 +24,7 @@ from .derivatives import find_inflection_points
 from .detector import detect_outliers
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
-from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms
+from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms, fetch_firms_area, sample_weather_enrichment
 from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
@@ -99,14 +99,14 @@ def _table_rows(scored,limit=300):
     return out
 
 
-def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,quadrature_order,weights,input_hash):
+def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,quadrature_order,weights,input_hash,source_gdf=None,source_meta=None):
     started=time.perf_counter()
     params={"probability_feature":probability_feature,"variables":variables,"noise_level":noise_level,
             "quadrature_order":quadrature_order,"weights":weights}
     save_analysis(job_id,"running",input_hash=input_hash,probability_feature=probability_feature,params=params)
     try:
-        _progress(job_id,10,"loading","Loading and appending Shapefiles")
-        gdf=load_and_append(inputs)
+        _progress(job_id,10,"loading","Loading geospatial observations")
+        gdf=source_gdf.copy() if source_gdf is not None else load_and_append(inputs)
         if gdf.crs is None: raise ValueError("Dataset has no CRS. Define the source CRS before analysis.")
         if len(gdf)<30: raise ValueError("Dataset is too small; at least 30 valid records are required.")
         numeric=[c for c in gdf.columns if c!="geometry" and pd.to_numeric(gdf[c],errors="coerce").notna().sum()>=30]
@@ -148,8 +148,10 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
 
         reproducibility={"software_version":VERSION,"timestamp_utc":datetime.now(timezone.utc).isoformat(),
           "input_sha256":input_hash,"parameters":params,"crs":str(gdf.crs),"rows_input":int(len(gdf)),
-          "random_state":42}
+          "random_state":42,"source":source_meta or {"type":"uploaded_shapefile"}}
         summary["reproducibility"]=reproducibility
+        _progress(job_id,84,"enrichment","Fetching bounded real weather context from Open-Meteo")
+        summary["external_context"]={"weather":sample_weather_enrichment(scored,max_points=8)}
 
         _progress(job_id,88,"exporting","Exporting GeoPackage, CSV, JSON and reports")
         outputs=export_analysis(scored,fits,cleaning,summary,results,noise_level=noise_level)
@@ -188,6 +190,34 @@ def external_weather(lat:float,lon:float):
 def external_firms(west:float,south:float,east:float,north:float,days:int=1):
     try: return fetch_nasa_firms(west,south,east,north,days)
     except Exception as e: raise HTTPException(502,str(e))
+
+
+@app.post("/live/firms/analyze")
+def live_firms_analyze(
+    west:float=Form(...), south:float=Form(...), east:float=Form(...), north:float=Form(...),
+    days:int=Form(1), source:str=Form("VIIRS_NOAA21_NRT"), date:str=Form(""),
+    probability_feature:str=Form("FRP"), variables:str=Form("FRP,BRIGHTNESS,BRIGHT_T31,SCAN,TRACK"),
+    noise_level:int=Form(99), quadrature_order:int=Form(32), weights_json:str=Form("")
+):
+    if noise_level not in (90,95,99): raise HTTPException(400,"noise_level must be 90, 95 or 99")
+    try: weights=json.loads(weights_json) if weights_json else None
+    except json.JSONDecodeError: raise HTTPException(400,"Invalid weights_json")
+    try:
+        gdf=fetch_firms_area(west,south,east,north,days,source,date or None)
+    except Exception as e:
+        raise HTTPException(502,str(e))
+    if len(gdf)<30:
+        raise HTTPException(422,f"NASA FIRMS returned only {len(gdf)} observations; at least 30 are required for this analysis.")
+    selected=[x.strip() for x in variables.split(",") if x.strip()]
+    job_id=uuid.uuid4().hex
+    job=RUNTIME/job_id; inputs=job/"input"; results=job/"results"
+    inputs.mkdir(parents=True); results.mkdir()
+    signature=json.dumps({"provider":"NASA FIRMS","bbox":[west,south,east,north],"days":days,"source":source,"date":date},sort_keys=True).encode()
+    input_hash=hashlib.sha256(signature).hexdigest()
+    source_meta={"type":"live_api","provider":"NASA FIRMS","product":source,"bbox":[west,south,east,north],"days":days,"date":date or None}
+    _progress(job_id,2,"queued",f"NASA FIRMS loaded {len(gdf)} live observations")
+    threading.Thread(target=_run_job,args=(job_id,inputs,results,probability_feature,selected,noise_level,quadrature_order,weights,input_hash,gdf,source_meta),daemon=True).start()
+    return {"job_id":job_id,"status":"queued","rows":len(gdf),"source":source,"progress_url":f"/jobs/{job_id}/progress"}
 
 
 @app.post("/inspect")
