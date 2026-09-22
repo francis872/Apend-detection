@@ -1,16 +1,17 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Apend Detection - Localhost
+title Apend Detection 1.1 - Localhost
 
 set "HOST=127.0.0.1"
 set "PORT=8000"
+set "HEALTH=http://%HOST%:%PORT%/health"
 set "URL=http://%HOST%:%PORT%/ui/"
 set "PY=.venv\Scripts\python.exe"
 
 echo.
 echo ==========================================
-echo        APEND DETECTION 1.0 - LOCAL
+echo        APEND DETECTION 1.1 - LOCAL
 echo ==========================================
 echo.
 
@@ -37,40 +38,44 @@ if errorlevel 1 goto :error
 echo [3/5] Verificando puerto %PORT%...
 netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul
 if not errorlevel 1 (
-  echo.
-  echo El puerto %PORT% ya esta en uso.
-  echo Si Apend Detection ya esta ejecutandose, abriendo la interfaz...
+  echo El puerto %PORT% ya esta ocupado.
+  echo Intentando abrir la interfaz existente...
   start "" "%URL%"
-  echo.
-  echo URL: %URL%
   pause
   exit /b 0
 )
 
-echo [4/5] Preparando navegador...
-start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 3; Start-Process '%URL%'"
+echo [4/5] El navegador se abrira cuando el backend responda correctamente.
+start "" powershell -NoProfile -WindowStyle Hidden -Command "$u='%HEALTH%'; for($i=0;$i -lt 90;$i++){ try { $r=Invoke-WebRequest -UseBasicParsing -Uri $u -TimeoutSec 1; if($r.StatusCode -eq 200){ Start-Process '%URL%'; exit 0 } } catch {}; Start-Sleep -Seconds 1 }; exit 1"
 
-echo [5/5] Iniciando servidor...
+echo [5/5] Iniciando FastAPI...
 echo.
-echo Apend Detection estara disponible en:
-echo   %URL%
+echo Cuando veas:
+echo   Uvicorn running on http://%HOST%:%PORT%
+echo el sistema esta listo.
 echo.
-echo API:
-echo   http://%HOST%:%PORT%/docs
-echo Health:
-echo   http://%HOST%:%PORT%/health
+echo Interfaz: %URL%
+echo Health:   %HEALTH%
+echo API docs: http://%HOST%:%PORT%/docs
 echo.
-echo Mantenga esta ventana abierta.
+echo Si ocurre un error, NO cierres esta ventana:
+echo copia el mensaje rojo o el traceback y enviamelo.
 echo Para detener el servidor: CTRL+C
 echo.
 
 "%PY%" -m uvicorn geo_outliers.api:app --host %HOST% --port %PORT%
+
 if errorlevel 1 goto :error
 goto :eof
 
 :error
 echo.
-echo [ERROR] Apend Detection no pudo iniciar.
-echo Revisa el mensaje anterior.
+echo ==========================================
+echo [ERROR] EL BACKEND NO PUDO INICIAR
+echo ==========================================
+echo.
+echo Ejecuta manualmente este comando para ver el error:
+echo   "%PY%" -m uvicorn geo_outliers.api:app --host %HOST% --port %PORT%
+echo.
 pause
 exit /b 1
