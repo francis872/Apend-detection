@@ -23,6 +23,8 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 echo [2/3] Sincronizando dependencias...
+".venv\Scripts\python.exe" -m pip install --disable-pip-version-check --upgrade pip setuptools wheel
+if errorlevel 1 goto :error
 ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -e .
 if errorlevel 1 goto :error
 
