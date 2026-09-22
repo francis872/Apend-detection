@@ -24,6 +24,7 @@ from .derivatives import find_inflection_points
 from .detector import detect_outliers
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
+from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms
 from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
@@ -174,6 +175,19 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
 
 @app.get("/health")
 def health(): return {"status":"ok","service":"Apend Detection","version":VERSION}
+
+@app.get("/integrations")
+def integrations(): return integration_status()
+
+@app.get("/external/weather")
+def external_weather(lat:float,lon:float):
+    try: return fetch_open_meteo(lat,lon)
+    except Exception as e: raise HTTPException(502,str(e))
+
+@app.get("/external/firms")
+def external_firms(west:float,south:float,east:float,north:float,days:int=1):
+    try: return fetch_nasa_firms(west,south,east,north,days)
+    except Exception as e: raise HTTPException(502,str(e))
 
 
 @app.post("/inspect")
