@@ -19,7 +19,7 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 <div class="actions"><label class="upload">Seleccionar ZIP<input id="file" type="file" accept=".zip" multiple></label><button id="inspect" disabled>Inspeccionar</button><button id="run" disabled>Ejecutar</button></div></div>
 
 <section class="card"><div class="head"><div><b>Configuración</b><div class="k">Selecciona uno o más ZIP Shapefile. La inspección comienza automáticamente.</div></div><div><select id="mode"><option value="default">Default</option><option value="advanced">Advanced</option></select></div></div>
-<div id="selectedFiles" class="k" style="margin-top:10px">Ningún archivo seleccionado.</div><div class="actions" style="justify-content:flex-start;margin-top:10px"><label>Variable principal <select id="variable"><option>FRP</option></select></label><label>Comparar <select id="compareVars" multiple size="4"></select></label></div>
+<div id="selectedFiles" class="k" style="margin-top:10px">Ningún archivo seleccionado.</div><div class="actions" style="justify-content:flex-start;margin-top:10px"><label><input type="checkbox" id="autoRun" checked> Analizar automáticamente después de inspeccionar</label><label>Variable principal <select id="variable"><option>FRP</option></select></label><label>Comparar <select id="compareVars" multiple size="4"></select></label></div>
 <div class="weights" id="weights" style="display:none;margin-top:12px"></div></section>
 
 <section class="card"><div class="head"><b id="stage">Listo</b><span id="pct">0%</span></div><div class="progress"><div class="bar" id="bar"></div></div><div class="k" id="status">Selecciona los archivos y pulsa Inspeccionar.</div></section>
@@ -96,6 +96,10 @@ async function inspectSelected(){
     $('stage').textContent='inspected';$('bar').style.width='100%';$('pct').textContent='100%';
     $('status').textContent='ZIP leído correctamente · '+j.rows+' registros · CRS '+(j.crs||'sin CRS')+' · '+j.numeric_variables.length+' variables numéricas.';
     $('run').disabled=!j.valid;
+    if(j.valid && $('autoRun').checked){
+      $('status').textContent+=' · Iniciando análisis completo…';
+      setTimeout(startAnalysis,250);
+    }
   }catch(e){
     $('stage').textContent='error';$('status').textContent='Error al inspeccionar: '+e.message;
     $('bar').style.width='0%';$('pct').textContent='0%';
@@ -112,8 +116,9 @@ $('file').addEventListener('change',()=>{
 
 $('inspect').onclick=inspectSelected;
 
-$('run').onclick=async()=>{
+async function startAnalysis(){
   if(!$('file').files.length)return alert('Selecciona archivos');
+  if($('run').disabled && $('stage').textContent!=='inspected') return;
   $('run').disabled=true;$('stage').textContent='upload';$('status').textContent='Subiendo dataset para análisis…';
   let fd=formFiles();
   fd.append('probability_feature',$('variable').value);
@@ -129,7 +134,8 @@ $('run').onclick=async()=>{
     $('stage').textContent='error';$('status').textContent='Error al subir para análisis: '+e.message;
     $('run').disabled=false;
   }
-};
+}
+$('run').onclick=startAnalysis;
 
 async function poll(id){
   let busy=false;
