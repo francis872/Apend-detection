@@ -6,6 +6,7 @@ from geo_outliers.geometry import spd_affine_invariant_distance
 from geo_outliers.quadrature import gaussian_quadrature, distribution_interval_probability, quadrature_cdf, confidence_interval_areas
 from geo_outliers.spatial import spatial_validation
 from geo_outliers.temporal import temporal_validation
+from geo_outliers.derivatives import pdf_derivatives, find_inflection_points
 
 
 def test_probability_distances_zero_on_identity():
@@ -55,3 +56,18 @@ def test_temporal_validation_flags_spike():
     score,meta=temporal_validation(df,'FRP',window=21)
     assert score[40]>.9
     assert meta['valid_rows']==n
+
+
+def test_normal_inflection_points_are_near_one_sigma():
+    result=find_inflection_points('norm',(0.,1.),lower=-4.,upper=4.,grid_size=4096)
+    pts=np.asarray(result['inflection_points'])
+    assert len(pts)==2
+    assert np.allclose(pts,[-1.,1.],atol=.02)
+
+
+def test_pdf_derivatives_normal_mode():
+    x=np.linspace(-3,3,2001)
+    pdf,d1,d2=pdf_derivatives('norm',(0.,1.),x)
+    i=np.argmin(np.abs(x))
+    assert abs(d1[i])<1e-4
+    assert d2[i]<0
