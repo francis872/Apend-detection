@@ -41,7 +41,17 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 
 <section class="card"><div class="head"><div><b>Anomalías explicables</b><div class="k">Top 1000 por score total</div></div></div><div class="table"><table><thead><tr><th>ID</th><th>Score</th><th>Tail p</th><th>Mahalanobis</th><th>Prob.</th><th>SPD</th><th>Procrustes</th><th>Spatial</th><th>Temporal</th><th>Dist. inflexión</th><th>Consenso</th><th>Razón</th><th>Estado</th></tr></thead><tbody id="anomalyRows"></tbody></table></div></section>
 
-<section class="card"><div class="head"><div><b>APIs reales</b><div class="k">Enriquecimiento externo del análisis geoespacial.</div></div><button id="checkApis">Comprobar APIs</button></div><div id="apiStatus" class="compare" style="margin-top:10px"></div></section><section class="card"><b>Descargas</b><div class="downloads" id="downloads"></div></section>
+<section class="card"><div class="head"><div><b>APIs reales</b><div class="k">NASA FIRMS puede alimentar directamente el mismo motor matemático. Open-Meteo añade contexto meteorológico real.</div></div><button id="checkApis">Comprobar APIs</button></div>
+<div id="apiStatus" class="compare" style="margin-top:10px"></div>
+<div class="actions" style="justify-content:flex-start;flex-wrap:wrap;margin-top:12px">
+<label>Oeste <input id="firmsWest" type="number" step=".1" value="-79"></label>
+<label>Sur <input id="firmsSouth" type="number" step=".1" value="-5"></label>
+<label>Este <input id="firmsEast" type="number" step=".1" value="-66"></label>
+<label>Norte <input id="firmsNorth" type="number" step=".1" value="13"></label>
+<label>Días <input id="firmsDays" type="number" min="1" max="5" value="1"></label>
+<label>Producto <select id="firmsSource"><option>VIIRS_NOAA21_NRT</option><option>VIIRS_NOAA20_NRT</option><option>VIIRS_SNPP_NRT</option><option>MODIS_NRT</option></select></label>
+<button id="runFirms">Analizar NASA FIRMS en vivo</button>
+</div><div class="k" id="liveStatus" style="margin-top:8px">Área inicial: Colombia aproximada. Requiere NASA_FIRMS_MAP_KEY.</div></section><section class="card"><b>Descargas</b><div class="downloads" id="downloads"></div></section>
 </main><script>
 const $=id=>document.getElementById(id),fmt=n=>Number.isFinite(+n)?(+n).toLocaleString('es-CO',{maximumFractionDigits:4}):'—';
 let charts=[],map=L.map('map').setView([4.6,-74.1],5),layer=L.layerGroup().addTo(map),mapData=[];
@@ -283,4 +293,22 @@ async function checkApis(){
   }catch(e){$('apiStatus').innerHTML='<div class="pill">Error: '+e.message+'</div>'}
 }
 $('checkApis').onclick=checkApis;checkApis();
+$('runFirms').onclick=async()=>{
+  const fd=new FormData();
+  ['West','South','East','North','Days'].forEach(k=>fd.append(k.toLowerCase(),$('firms'+k).value));
+  fd.append('source',$('firmsSource').value);
+  fd.append('probability_feature','FRP');
+  fd.append('variables','FRP,BRIGHTNESS,BRIGHT_T31,SCAN,TRACK');
+  fd.append('noise_level','99');fd.append('quadrature_order','32');
+  $('runFirms').disabled=true;$('stage').textContent='NASA FIRMS';$('status').textContent='Consultando observaciones satelitales reales…';
+  try{
+    const r=await fetch('/live/firms/analyze',{method:'POST',body:fd});
+    const j=await r.json();
+    if(!r.ok)throw new Error(j.detail||('HTTP '+r.status));
+    $('liveStatus').textContent='NASA FIRMS entregó '+fmt(j.rows)+' observaciones. Ejecutando motor Apend…';
+    poll(j.job_id);
+  }catch(e){
+    $('stage').textContent='error';$('status').textContent='NASA FIRMS: '+e.message;$('liveStatus').textContent=e.message;
+  }finally{$('runFirms').disabled=false}
+};
 </script></body></html>
