@@ -63,7 +63,7 @@ def _hash_files(paths):
     return h.hexdigest()
 
 
-def _map_points(scored,max_points=12000):
+def _map_points(scored,max_points=5000):
     if scored.crs is None:return []
     geo=scored.to_crs(4326)
     if len(geo)>max_points:
@@ -81,7 +81,7 @@ def _map_points(scored,max_points=12000):
     return pts
 
 
-def _table_rows(scored,limit=1000):
+def _table_rows(scored,limit=300):
     cols=["outlier_score","probability_tail_area","score_mahal","score_probability","score_spd",
           "score_procrustes","score_spatial","score_temporal","distance_to_inflection",
           "consensus_methods","anomaly_reason","record_status","outlier_level"]
@@ -121,12 +121,12 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         component_data=summary.pop("_components_for_validation",{})
         components=pd.DataFrame(component_data)
         summary["model_validation"]={
-            "bootstrap":bootstrap_distribution_stability(gdf[probability_feature],n_boot=10),
+            "bootstrap":bootstrap_distribution_stability(gdf[probability_feature],n_boot=3,sample_size=1000),
             "ablation":ablation_sensitivity(components,summary["ensemble_weights"])
         }
         projected=gdf.to_crs(gdf.estimate_utm_crs())
         coords=np.c_[projected.geometry.x,projected.geometry.y]
-        chosen=[v for v in variables if v in numeric][:8] or [probability_feature]
+        chosen=[v for v in variables if v in numeric][:3] or [probability_feature]
         comparison=compare_variables(gdf,chosen,coords,quadrature_order=min(32,quadrature_order))
         summary["variable_comparison"]=comparison
 
@@ -157,7 +157,7 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
 
         payload={"job_id":job_id,"summary":{"cleaning":cleaning,"detector":summary},
           "outputs":{k:f"/jobs/{job_id}/files/{v}" for k,v in outputs.items()},
-          "plot":plot,"map_points":_map_points(scored),"anomalies":_table_rows(scored),
+          "plot":plot,"map_points":_map_points(scored,max_points=5000),"anomalies":_table_rows(scored,limit=300),
           "numeric_variables":numeric,"comparison":comparison}
         (results/"response.json").write_text(json.dumps(payload,ensure_ascii=False),encoding="utf-8")
         elapsed=time.perf_counter()-started
