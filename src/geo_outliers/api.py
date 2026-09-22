@@ -13,6 +13,10 @@ from fastapi.staticfiles import StaticFiles
 from .io import load_and_append, basic_clean
 from .detector import detect_outliers
 from .exports import export_analysis
+import ast
+import numpy as np
+import pandas as pd
+from scipy import stats
 
 app=FastAPI(title="Apend Detection API",version="0.2.0")
 RUNTIME=Path("runtime/jobs")
@@ -61,11 +65,22 @@ async def analyze(
             gdf,probability_feature=probability_feature,quadrature_order=quadrature_order
         )
         outputs=export_analysis(scored,fits,cleaning,summary,results,noise_level=noise_level)
+        vals=pd.to_numeric(scored[probability_feature],errors="coerce").dropna().to_numpy(float)
+        hist,edges=np.histogram(vals,bins="fd",density=True)
+        centers=((edges[:-1]+edges[1:])/2).astype(float)
+        best=fits.iloc[0]
+        params=ast.literal_eval(best["params"])
+        pdf=stats.__dict__[best["distribution"]].pdf(centers,*params)
+        plot_data={
+            "x":centers.tolist(),"histogram":hist.astype(float).tolist(),
+            "pdf":np.nan_to_num(pdf,nan=0.0,posinf=0.0,neginf=0.0).astype(float).tolist(),
+            "distribution":best["distribution"]
+        }
     except Exception as e:
         raise HTTPException(422,f"Analysis failed: {e}") from e
     return {
         "job_id":job_id,"summary":{"cleaning":cleaning,"detector":summary},
-        "outputs":{k:f"/jobs/{job_id}/files/{v}" for k,v in outputs.items()}
+        "outputs":{k:f"/jobs/{job_id}/files/{v}" for k,v in outputs.items()}, "plot":plot_data
     }
 
 
