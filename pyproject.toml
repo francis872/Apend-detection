@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "geo-outliers"
-version = "0.2.0"
+version = "1.0.0"
 description = "Explainable geospatial outlier detection with probability fitting, Gaussian quadrature, Fisher-Rao, Bhattacharyya, SPD, Procrustes, spatial and temporal validation"
 requires-python = ">=3.10"
 dependencies = [
