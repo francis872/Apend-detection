@@ -1,51 +1,76 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Apend Detection
+title Apend Detection - Localhost
+
+set "HOST=127.0.0.1"
+set "PORT=8000"
+set "URL=http://%HOST%:%PORT%/ui/"
+set "PY=.venv\Scripts\python.exe"
 
 echo.
 echo ==========================================
-echo        APEND DETECTION - LOCALHOST
+echo        APEND DETECTION 1.0 - LOCAL
 echo ==========================================
 echo.
 
 where python >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] Python no esta disponible en PATH.
-  echo Instala Python 3.10 o superior y vuelve a intentarlo.
+  echo Instala Python 3.10 o superior.
   pause
   exit /b 1
 )
 
-if not exist ".venv\Scripts\python.exe" (
-  echo [1/4] Creando entorno virtual...
+if not exist "%PY%" (
+  echo [1/5] Creando entorno virtual...
   python -m venv .venv
   if errorlevel 1 goto :error
 ) else (
-  echo [1/4] Entorno virtual encontrado.
+  echo [1/5] Entorno virtual listo.
 )
 
-echo [2/4] Instalando o actualizando Apend Detection...
-".venv\Scripts\python.exe" -m pip install --upgrade pip
-if errorlevel 1 goto :error
-".venv\Scripts\python.exe" -m pip install -e .
+echo [2/5] Instalando Apend Detection...
+"%PY%" -m pip install -e .
 if errorlevel 1 goto :error
 
-echo [3/4] Iniciando servidor local...
-echo [4/4] Abriendo http://127.0.0.1:8000/ui/
-start "" "http://127.0.0.1:8000/ui/"
+echo [3/5] Verificando puerto %PORT%...
+netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul
+if not errorlevel 1 (
+  echo.
+  echo El puerto %PORT% ya esta en uso.
+  echo Si Apend Detection ya esta ejecutandose, abriendo la interfaz...
+  start "" "%URL%"
+  echo.
+  echo URL: %URL%
+  pause
+  exit /b 0
+)
 
+echo [4/5] Preparando navegador...
+start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 3; Start-Process '%URL%'"
+
+echo [5/5] Iniciando servidor...
 echo.
-echo Apend Detection esta ejecutandose.
-echo No cierres esta ventana mientras estes realizando el analisis.
-echo Para detener el servidor presiona CTRL+C.
+echo Apend Detection estara disponible en:
+echo   %URL%
 echo.
-".venv\Scripts\python.exe" -m uvicorn geo_outliers.api:app --host 127.0.0.1 --port 8000
+echo API:
+echo   http://%HOST%:%PORT%/docs
+echo Health:
+echo   http://%HOST%:%PORT%/health
+echo.
+echo Mantenga esta ventana abierta.
+echo Para detener el servidor: CTRL+C
+echo.
+
+"%PY%" -m uvicorn geo_outliers.api:app --host %HOST% --port %PORT%
+if errorlevel 1 goto :error
 goto :eof
 
 :error
 echo.
-echo [ERROR] No fue posible iniciar Apend Detection.
-echo Revisa los mensajes anteriores.
+echo [ERROR] Apend Detection no pudo iniciar.
+echo Revisa el mensaje anterior.
 pause
 exit /b 1
