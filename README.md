@@ -62,3 +62,38 @@ Si no instalas el paquete en modo editable, usa `PYTHONPATH=src` antes del coman
 ## Archivos de datos
 
 GeoPackage y Shapefiles binarios no se versionan. Los resultados tabulares reproducibles si se pueden conservar en `results/`.
+
+
+## Version 0.2 - pipeline completo
+
+Apend Detection ahora integra las diez capas de trabajo:
+
+1. Ejecucion reproducible del pipeline con Gauss-Legendre.
+2. API FastAPI: upload de uno o varios ZIP Shapefile y analisis desde la interfaz.
+3. Histograma en UI y parametros de la distribucion ganadora disponibles en el resultado para representar la PDF real.
+4. Explicabilidad por registro mediante `consensus_methods` y `anomaly_reason`.
+5. Separacion explicita entre `anomaly_candidate` y `noise_candidate`; una anomalia valida no se elimina automaticamente.
+6. Validacion espacial con kNN Local Moran, residual de vecindario y Local Outlier Factor espacial.
+7. Validacion temporal robusta mediante mediana/MAD movil sobre `ACQ_DATE` + `ACQ_TIME`.
+8. CI con GitHub Actions y pytest.
+9. Exportacion QGIS: `analysis.gpkg`, `cleaned.gpkg`, `outliers_90.gpkg`, `outliers_95.gpkg`, `outliers_99.gpkg`, `analysis.csv`.
+10. Reporte automatico `REPORT.md` + `summary.json`.
+
+### Ejecutar la aplicacion
+
+```bash
+pip install -e .
+uvicorn geo_outliers.api:app --reload
+```
+
+Abre `http://127.0.0.1:8000/ui/`. Desde alli selecciona uno o varios ZIP Shapefile y pulsa **Ejecutar analisis completo**.
+
+### Criterio de ruido
+
+`outlier_90/95/99` representa rareza estadistica. `noise_candidate` es deliberadamente mas conservador: requiere pertenecer al 1% superior del score combinado y que al menos tres metodos independientes alcancen score >= 0.95. Por eso `cleaned.gpkg` elimina candidatos a ruido, no todos los eventos extremos.
+
+### Reproducir por CLI
+
+```bash
+geo-outliers data/raw --output results --probability-feature FRP --quadrature-order 48
+```
