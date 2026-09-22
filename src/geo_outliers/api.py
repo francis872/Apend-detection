@@ -17,8 +17,9 @@ import ast
 import numpy as np
 import pandas as pd
 from scipy import stats
+from .derivatives import find_inflection_points
 
-app=FastAPI(title="Apend Detection API",version="0.2.0")
+app=FastAPI(title="Apend Detection API",version="1.0.0")
 RUNTIME=Path("runtime/jobs")
 RUNTIME.mkdir(parents=True,exist_ok=True)
 
@@ -35,7 +36,7 @@ def _safe_extract(zpath: Path, dest: Path):
 
 @app.get("/health")
 def health():
-    return {"status":"ok","service":"Apend Detection","version":"0.2.0"}
+    return {"status":"ok","service":"Apend Detection","version":"1.0.0"}
 
 
 @app.post("/analyze")
@@ -71,10 +72,16 @@ async def analyze(
         best=fits.iloc[0]
         params=ast.literal_eval(best["params"])
         pdf=stats.__dict__[best["distribution"]].pdf(centers,*params)
+        deriv=find_inflection_points(best["distribution"],params,lower=float(edges[0]),upper=float(edges[-1]),grid_size=max(512,len(centers)*8))
+        d1=np.interp(centers,deriv["x"],deriv["first_derivative"])
+        d2=np.interp(centers,deriv["x"],deriv["second_derivative"])
         plot_data={
             "x":centers.tolist(),"histogram":hist.astype(float).tolist(),
             "pdf":np.nan_to_num(pdf,nan=0.0,posinf=0.0,neginf=0.0).astype(float).tolist(),
-            "distribution":best["distribution"]
+            "distribution":best["distribution"],
+            "first_derivative":d1.astype(float).tolist(),
+            "second_derivative":d2.astype(float).tolist(),
+            "inflection_points":deriv["inflection_points"]
         }
     except Exception as e:
         raise HTTPException(422,f"Analysis failed: {e}") from e
