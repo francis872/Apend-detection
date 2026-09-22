@@ -126,8 +126,8 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         }
         projected=gdf.to_crs(gdf.estimate_utm_crs())
         coords=np.c_[projected.geometry.x,projected.geometry.y]
-        chosen=[v for v in variables if v in numeric][:3] or [probability_feature]
-        comparison=compare_variables(gdf,chosen,coords,quadrature_order=min(32,quadrature_order))
+        chosen=[v for v in variables if v in numeric] or [probability_feature]
+        comparison=compare_variables(gdf,chosen,coords,quadrature_order=min(24,quadrature_order),max_sample=10000)
         summary["variable_comparison"]=comparison
 
         _progress(job_id,78,"plots","Preparing PDF, derivatives, map and explainability table")
@@ -155,12 +155,15 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         write_html_report(results,cleaning,summary,plot,_map_points(scored))
         outputs["report_html"]="REPORT.html"
 
+        elapsed=time.perf_counter()-started
         payload={"job_id":job_id,"summary":{"cleaning":cleaning,"detector":summary},
           "outputs":{k:f"/jobs/{job_id}/files/{v}" for k,v in outputs.items()},
           "plot":plot,"map_points":_map_points(scored,max_points=5000),"anomalies":_table_rows(scored,limit=300),
-          "numeric_variables":numeric,"comparison":comparison}
+          "numeric_variables":numeric,"comparison":comparison,"elapsed_seconds":elapsed,
+          "analysis_status":{"numeric_detected":len(numeric),"variables_compared":len(comparison),
+            "map_points":len(_map_points(scored,max_points=5000)),"anomaly_rows":len(_table_rows(scored,limit=300))}}
+        
         (results/"response.json").write_text(json.dumps(payload,ensure_ascii=False),encoding="utf-8")
-        elapsed=time.perf_counter()-started
         save_analysis(job_id,"complete",input_hash=input_hash,probability_feature=probability_feature,
           rows=len(scored),crs=str(gdf.crs),params=params,summary=summary,outputs=outputs,elapsed_seconds=elapsed)
         _progress(job_id,100,"complete",f"Analysis completed in {elapsed:.1f}s")
