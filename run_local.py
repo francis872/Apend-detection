@@ -53,10 +53,12 @@ def main():
         raise SystemExit(1)
 
     try:
+        from selftest import quick_test
+        quick_test()
         from geo_outliers.api import app
         print("[OK] Backend importado:",app.title,app.version)
     except Exception:
-        print("\n[ERROR] Fallo importando geo_outliers.api:\n")
+        print("\n[ERROR] El autodiagnostico o la importacion del backend fallo:\n")
         raise
 
     if check_port():
