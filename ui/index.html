@@ -33,7 +33,7 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 <div class="card"><b>Histograma + PDF + áreas 90/95/99</b><div class="chart"><canvas id="pdfChart"></canvas></div></div>
 <div class="card"><b>Primera derivada f′(x)</b><div class="chart"><canvas id="d1Chart"></canvas></div></div>
 <div class="card"><b>Segunda derivada f″(x) · puntos de inflexión</b><div class="chart"><canvas id="d2Chart"></canvas></div><div class="k" id="infl"></div></div>
-<div class="card"><b>Niveles de anomalía · 90 / 95 / 99</b><div class="chart"><canvas id="levelChart"></canvas></div></div><div class="card"><b>Comparación entre variables</b><div id="comparison" class="compare"></div></div>
+<div class="card"><b>Niveles de anomalía · 90 / 95 / 99</b><div class="chart"><canvas id="levelChart"></canvas></div></div><div class="card"><b>Comparación entre variables</b><div class="k" id="analysisCoverage">Esperando análisis completo…</div><div id="comparison" class="compare"></div></div>
 </section>
 
 <section class="card"><div class="head"><div><b>Mapa interactivo</b><div class="k">Normal · 90 · 95 · 99 · probable_noise</div></div><div class="filters">
@@ -147,7 +147,7 @@ async function poll(id){
         if(!rr.ok)throw new Error('El análisis terminó pero el resultado no pudo cargarse.');
         render(await rr.json());$('run').disabled=false;
       }
-      if(p.stage==='failed'){clearInterval(timer);$('run').disabled=false}
+      if(p.stage==='failed'){clearInterval(timer);$('run').disabled=false;$('status').textContent='ANÁLISIS FALLÓ: '+p.message}
     }catch(e){
       clearInterval(timer);$('stage').textContent='error';$('status').textContent=e.message;$('run').disabled=false;
     }finally{busy=false}
@@ -161,7 +161,7 @@ function render(j){
   $('best').textContent=s.best_distribution.toUpperCase();
   $('o99').textContent=fmt(s.counts['99']);
   $('noise').textContent=fmt(s.noise_candidates);
-  $('elapsed').textContent='completo';
+  $('elapsed').textContent=Number.isFinite(+j.elapsed_seconds)?fmt(j.elapsed_seconds)+' s':'completo';
   killCharts();
 
   const p=j.plot, labels=p.x.map(fmt), ints=p.intervals||{};
@@ -216,7 +216,9 @@ function render(j){
   mapData=(j.map_points||[]).filter(p=>Number.isFinite(+p.lat)&&Number.isFinite(+p.lon));
   setTimeout(drawMap,0);
   $('anomalyRows').innerHTML=(j.anomalies||[]).map(a=>'<tr><td>'+a.id+'</td><td>'+fmt(a.outlier_score)+'</td><td>'+fmt(a.probability_tail_area)+'</td><td>'+fmt(a.score_mahal)+'</td><td>'+fmt(a.score_probability)+'</td><td>'+fmt(a.score_spd)+'</td><td>'+fmt(a.score_procrustes)+'</td><td>'+fmt(a.score_spatial)+'</td><td>'+fmt(a.score_temporal)+'</td><td>'+fmt(a.distance_to_inflection)+'</td><td>'+a.consensus_methods+'</td><td>'+a.anomaly_reason+'</td><td>'+a.record_status+'</td></tr>').join('');
-  $('comparison').innerHTML=(j.comparison||[]).map(v=>'<div class="pill"><b>'+v.variable+'</b><br><span class="k">'+(v.status==='ok'?(v.distribution+' · KS '+fmt(v.ks)+' · P95 '+fmt(v.probability_anomalies_95)):v.status)+'</span></div>').join('');
+  const cov=j.analysis_status||{};
+  $('analysisCoverage').textContent='Variables numéricas detectadas: '+fmt(cov.numeric_detected)+' · comparadas: '+fmt(cov.variables_compared)+' · puntos en mapa: '+fmt(cov.map_points)+' · anomalías listadas: '+fmt(cov.anomaly_rows);
+  $('comparison').innerHTML=(j.comparison||[]).map(v=>'<div class="pill"><b>'+v.variable+'</b><br><span class="k">'+(v.status==='ok'?(v.distribution+' · n '+fmt(v.n)+(v.sample_n&&v.sample_n<v.n?' · muestra '+fmt(v.sample_n):'')+' · KS '+fmt(v.ks)+' · Prob P95 '+fmt(v.probability_anomalies_95)+' · Spatial P95 '+fmt(v.spatial_anomalies_95)+' · Temporal P95 '+fmt(v.temporal_anomalies_95)):v.status+(v.error?' · '+v.error:''))+'</span></div>').join('');
   $('downloads').innerHTML=Object.entries(j.outputs).map(([k,v])=>'<a href="'+v+'">'+k+'</a>').join('');
 }
 
