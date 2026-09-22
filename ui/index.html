@@ -10,7 +10,7 @@
 .top,.head,.actions{display:flex;justify-content:space-between;gap:12px;align-items:center}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:14px}
 h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;font-size:11px}.muted,.k{color:var(--muted)}button,.upload,select,input{border:1px solid var(--line);background:#12231f;color:var(--txt);padding:9px 12px;border-radius:10px}.upload{background:var(--a);color:#07100e;font-weight:800;cursor:pointer}#file{display:none}
 .grid{display:grid;gap:12px}.stats{grid-template-columns:repeat(5,1fr)}.charts{grid-template-columns:1fr 1fr}.v{font-size:24px;font-weight:800;margin-top:5px}.chart{height:280px}
-#map{height:520px;border-radius:12px}.progress{height:12px;background:#091411;border-radius:8px;overflow:hidden}.bar{height:100%;width:0;background:var(--a);transition:.3s}
+#map{height:520px;border-radius:12px}.mapLegend{background:#0f1c19;color:#edf7f3;padding:10px 12px;border-radius:10px;border:1px solid #20332e;line-height:1.7;box-shadow:0 4px 18px rgba(0,0,0,.25)}.mapLegend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;border:1px solid rgba(255,255,255,.55)}.mapStats{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mapStat{padding:7px 10px;border:1px solid var(--line);background:#091411;border-radius:10px;font-size:12px}.progress{height:12px;background:#091411;border-radius:8px;overflow:hidden}.bar{height:100%;width:0;background:var(--a);transition:.3s}
 .weights{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.weights input{width:100%}.table{overflow:auto;max-height:430px}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{color:var(--muted)}
 .filters{display:flex;gap:8px;flex-wrap:wrap}.downloads a{color:var(--a);margin-right:12px}.compare{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.pill{background:#091411;padding:10px;border-radius:10px;border:1px solid var(--line)}
 @media(max-width:900px){.stats,.charts,.weights,.compare{grid-template-columns:1fr 1fr}}@media(max-width:600px){.stats,.charts,.weights,.compare{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
@@ -37,7 +37,7 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 </section>
 
 <section class="card"><div class="head"><div><b>Mapa interactivo</b><div class="k">Normal · 90 · 95 · 99 · probable_noise</div></div><div class="filters">
-<label><input type="checkbox" class="mf" value="normal" checked> Normal</label><label><input type="checkbox" class="mf" value="90" checked> 90</label><label><input type="checkbox" class="mf" value="95" checked> 95</label><label><input type="checkbox" class="mf" value="99" checked> 99</label><label><input type="checkbox" id="noiseOnly"> Solo ruido</label></div></div><div id="map"></div></section>
+<label><input type="checkbox" class="mf" value="normal" checked> Normal</label><label><input type="checkbox" class="mf" value="90" checked> 90%</label><label><input type="checkbox" class="mf" value="95" checked> 95%</label><label><input type="checkbox" class="mf" value="99" checked> 99%</label><label><input type="checkbox" id="noiseOnly"> Solo ruido</label></div></div><div class="mapStats"><span class="mapStat" id="mNormal">Normal: —</span><span class="mapStat" id="m90">90%: —</span><span class="mapStat" id="m95">95%: —</span><span class="mapStat" id="m99">99%: —</span><span class="mapStat" id="mNoise">Ruido: —</span></div><div id="map"></div></section>
 
 <section class="card"><div class="head"><div><b>Anomalías explicables</b><div class="k">Top 1000 por score total</div></div></div><div class="table"><table><thead><tr><th>ID</th><th>Score</th><th>Tail p</th><th>Mahalanobis</th><th>Prob.</th><th>SPD</th><th>Procrustes</th><th>Spatial</th><th>Temporal</th><th>Dist. inflexión</th><th>Consenso</th><th>Razón</th><th>Estado</th></tr></thead><tbody id="anomalyRows"></tbody></table></div></section>
 
@@ -46,6 +46,16 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 const $=id=>document.getElementById(id),fmt=n=>Number.isFinite(+n)?(+n).toLocaleString('es-CO',{maximumFractionDigits:4}):'—';
 let charts=[],map=L.map('map').setView([4.6,-74.1],5),layer=L.layerGroup().addTo(map),mapData=[];
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+const mapStyle={
+  normal:{color:'#4da3ff',fillColor:'#4da3ff',radius:3},
+  '90':{color:'#f0c419',fillColor:'#f0c419',radius:5},
+  '95':{color:'#ff8c42',fillColor:'#ff8c42',radius:6},
+  '99':{color:'#ff3b30',fillColor:'#ff3b30',radius:7},
+  noise:{color:'#ffffff',fillColor:'#b000ff',radius:8}
+};
+const legend=L.control({position:'bottomright'});
+legend.onAdd=()=>{let d=L.DomUtil.create('div','mapLegend');d.innerHTML='<b>Niveles de anomalía</b><br><i style="background:#4da3ff"></i>Normal<br><i style="background:#f0c419"></i>90%<br><i style="background:#ff8c42"></i>95%<br><i style="background:#ff3b30"></i>99%<br><i style="background:#b000ff"></i>Probable noise';return d};
+legend.addTo(map);
 const weightNames={score_mahal:.20,score_probability:.25,score_spd:.18,score_procrustes:.10,score_spatial:.17,score_temporal:.10};
 $('weights').innerHTML=Object.entries(weightNames).map(([k,v])=>'<label>'+k.replace('score_','')+'<input data-weight="'+k+'" type="number" min="0" step=".01" value="'+v+'"></label>').join('');
 $('mode').onchange=()=>$('weights').style.display=$('mode').value==='advanced'?'grid':'none';
@@ -68,6 +78,51 @@ mapData=j.map_points||[];drawMap();$('anomalyRows').innerHTML=(j.anomalies||[]).
 $('comparison').innerHTML=(j.comparison||[]).map(v=>'<div class="pill"><b>'+v.variable+'</b><br><span class="k">'+(v.status==='ok'?(v.distribution+' · KS '+fmt(v.ks)+' · P95 '+fmt(v.probability_anomalies_95)):v.status)+'</span></div>').join('');
 $('downloads').innerHTML=Object.entries(j.outputs).map(([k,v])=>'<a href="'+v+'">'+k+'</a>').join('');}
 
-function drawMap(){layer.clearLayers();let levels=new Set([...document.querySelectorAll('.mf:checked')].map(x=>x.value)),noiseOnly=$('noiseOnly').checked,b=[];mapData.forEach(p=>{if(noiseOnly&&p.status!=='probable_noise')return;if(!noiseOnly&&!levels.has(p.level))return;let m=L.circleMarker([p.lat,p.lon],{radius:p.status==='probable_noise'?6:4,weight:1,fillOpacity:.75});m.bindPopup('ID '+p.id+'<br>nivel '+p.level+'<br>score '+fmt(p.score)+'<br>'+p.reason);m.addTo(layer);b.push([p.lat,p.lon])});if(b.length)map.fitBounds(b,{padding:[20,20]})}
+function drawMap(){
+  layer.clearLayers();
+  const levels=new Set([...document.querySelectorAll('.mf:checked')].map(x=>x.value));
+  const noiseOnly=$('noiseOnly').checked;
+  const bounds=[];
+  const counts={normal:0,'90':0,'95':0,'99':0,noise:0};
+
+  mapData.forEach(p=>{
+    const level=String(p.level||'normal');
+    if(p.status==='probable_noise') counts.noise++;
+    if(counts[level]!==undefined) counts[level]++;
+
+    if(noiseOnly && p.status!=='probable_noise') return;
+    if(!noiseOnly && !levels.has(level)) return;
+
+    const style=p.status==='probable_noise'?mapStyle.noise:(mapStyle[level]||mapStyle.normal);
+    const marker=L.circleMarker([p.lat,p.lon],{
+      radius:style.radius,
+      color:style.color,
+      fillColor:style.fillColor,
+      weight:p.status==='probable_noise'?2:1,
+      fillOpacity:.82,
+      opacity:.95
+    });
+
+    const label=level==='normal'?'Normal':level+'%';
+    marker.bindTooltip(label,{direction:'top',opacity:.9});
+    marker.bindPopup(
+      '<b>Observación '+p.id+'</b>'+
+      '<br><b>Nivel:</b> '+label+
+      '<br><b>Score:</b> '+fmt(p.score)+
+      '<br><b>Estado:</b> '+p.status+
+      '<br><b>Motivo:</b> '+(p.reason||'ensemble')
+    );
+    marker.addTo(layer);
+    bounds.push([p.lat,p.lon]);
+  });
+
+  $('mNormal').textContent='Normal: '+fmt(counts.normal);
+  $('m90').textContent='90%: '+fmt(counts['90']);
+  $('m95').textContent='95%: '+fmt(counts['95']);
+  $('m99').textContent='99%: '+fmt(counts['99']);
+  $('mNoise').textContent='Ruido: '+fmt(counts.noise);
+
+  if(bounds.length) map.fitBounds(bounds,{padding:[20,20],maxZoom:12});
+}
 document.querySelectorAll('.mf').forEach(x=>x.onchange=drawMap);$('noiseOnly').onchange=drawMap;
 </script></body></html>
