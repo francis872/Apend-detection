@@ -97,3 +97,22 @@ Abre `http://127.0.0.1:8000/ui/`. Desde alli selecciona uno o varios ZIP Shapefi
 ```bash
 geo-outliers data/raw --output results --probability-feature FRP --quadrature-order 48
 ```
+
+
+## Apend Detection 1.0 - Final
+
+La version 1.0 cierra el proyecto con un pipeline reproducible de analisis estadistico-geoespacial. Ademas de la integral numerica, el sistema calcula la primera y segunda derivada de la PDF ajustada. Los puntos de inflexion se aceptan cuando `f''(x)` cambia de signo; el valor cero aislado no basta.
+
+Cada observacion exportada puede incluir `pdf_value`, `pdf_derivative_1`, `pdf_derivative_2`, `distance_to_inflection` e `is_inflection_zone`. Las derivadas se usan como diagnostico e interpretabilidad de la distribucion y no se agregan artificialmente al score de anomalia: el score conserva sus componentes estadisticos, geometricos, espaciales y temporales.
+
+### Inicio en Windows
+
+Haz doble clic en `start.bat`. El lanzador prepara el entorno, inicia FastAPI y abre:
+
+`http://127.0.0.1:8000/ui/`
+
+La interfaz ejecuta el analisis, representa histograma + PDF + `f'(x)` + `f''(x)`, informa los puntos de inflexion y permite descargar los artefactos QGIS/CSV/JSON/reporte.
+
+### Pipeline 1.0
+
+`Append -> Cleaning -> Probability Fit -> Gaussian Quadrature -> Derivatives/Inflection -> Mahalanobis -> SPD -> Procrustes -> Spatial -> Temporal -> Explainable Consensus -> 90/95/99 -> Noise validation -> Export/Report`
