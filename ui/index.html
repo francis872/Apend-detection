@@ -41,7 +41,7 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 
 <section class="card"><div class="head"><div><b>Anomalías explicables</b><div class="k">Top 1000 por score total</div></div></div><div class="table"><table><thead><tr><th>ID</th><th>Score</th><th>Tail p</th><th>Mahalanobis</th><th>Prob.</th><th>SPD</th><th>Procrustes</th><th>Spatial</th><th>Temporal</th><th>Dist. inflexión</th><th>Consenso</th><th>Razón</th><th>Estado</th></tr></thead><tbody id="anomalyRows"></tbody></table></div></section>
 
-<section class="card"><b>Descargas</b><div class="downloads" id="downloads"></div></section>
+<section class="card"><div class="head"><div><b>APIs reales</b><div class="k">Enriquecimiento externo del análisis geoespacial.</div></div><button id="checkApis">Comprobar APIs</button></div><div id="apiStatus" class="compare" style="margin-top:10px"></div></section><section class="card"><b>Descargas</b><div class="downloads" id="downloads"></div></section>
 </main><script>
 const $=id=>document.getElementById(id),fmt=n=>Number.isFinite(+n)?(+n).toLocaleString('es-CO',{maximumFractionDigits:4}):'—';
 let charts=[],map=L.map('map').setView([4.6,-74.1],5),layer=L.layerGroup().addTo(map),mapData=[];
@@ -275,4 +275,12 @@ function drawMap(){
   if(bounds.length) map.fitBounds(bounds,{padding:[20,20],maxZoom:12});
 }
 document.querySelectorAll('.mf').forEach(x=>x.onchange=drawMap);$('noiseOnly').onchange=drawMap;
+async function checkApis(){
+  $('apiStatus').innerHTML='<div class="pill">Comprobando…</div>';
+  try{
+    const r=await fetch('/integrations'),j=await r.json();
+    $('apiStatus').innerHTML=Object.entries(j).map(([k,v])=>'<div class="pill"><b>'+k+'</b><br><span class="k">'+(v.configured?'Configurada':'Disponible sin clave')+' · '+v.purpose+'</span></div>').join('');
+  }catch(e){$('apiStatus').innerHTML='<div class="pill">Error: '+e.message+'</div>'}
+}
+$('checkApis').onclick=checkApis;checkApis();
 </script></body></html>
