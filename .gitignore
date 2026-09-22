@@ -14,3 +14,7 @@ reports/*.png
 *.prj
 *.cpg
 .DS_Store
+
+runtime/
+.pytest_cache/
+*.egg-info/
