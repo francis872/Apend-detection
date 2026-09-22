@@ -131,7 +131,28 @@ $('run').onclick=async()=>{
   }
 };
 
-async function poll(id){let timer=setInterval(async()=>{let r=await fetch('/jobs/'+id+'/progress'),p=await r.json();$('bar').style.width=p.percent+'%';$('pct').textContent=p.percent+'%';$('stage').textContent=p.stage;$('status').textContent=p.message;if(p.stage==='complete'){clearInterval(timer);let j=await fetch('/jobs/'+id+'/result').then(r=>r.json());render(j);$('run').disabled=false}if(p.stage==='failed'){clearInterval(timer);$('run').disabled=false}},800)}
+async function poll(id){
+  let busy=false;
+  const timer=setInterval(async()=>{
+    if(busy)return;
+    busy=true;
+    try{
+      const r=await fetch('/jobs/'+id+'/progress');
+      if(!r.ok)throw new Error('No se pudo consultar el progreso (HTTP '+r.status+')');
+      const p=await r.json();
+      $('bar').style.width=p.percent+'%';$('pct').textContent=p.percent+'%';$('stage').textContent=p.stage;$('status').textContent=p.message;
+      if(p.stage==='complete'){
+        clearInterval(timer);
+        const rr=await fetch('/jobs/'+id+'/result');
+        if(!rr.ok)throw new Error('El análisis terminó pero el resultado no pudo cargarse.');
+        render(await rr.json());$('run').disabled=false;
+      }
+      if(p.stage==='failed'){clearInterval(timer);$('run').disabled=false}
+    }catch(e){
+      clearInterval(timer);$('stage').textContent='error';$('status').textContent=e.message;$('run').disabled=false;
+    }finally{busy=false}
+  },1500)
+}
 
 function killCharts(){charts.forEach(c=>c.destroy());charts=[]}
 function render(j){
@@ -144,7 +165,7 @@ function render(j){
   killCharts();
 
   const p=j.plot, labels=p.x.map(fmt), ints=p.intervals||{};
-  const maxPdf=Math.max(...p.pdf,0);
+  const maxPdf=(p.pdf||[]).reduce((m,v)=>Number.isFinite(+v)?Math.max(m,+v):m,0);
   const area90=p.x.map(x=>ints['90']&&x>=ints['90'].lower&&x<=ints['90'].upper?maxPdf*.10:null);
   const area95=p.x.map(x=>ints['95']&&x>=ints['95'].lower&&x<=ints['95'].upper?maxPdf*.07:null);
   const area99=p.x.map(x=>ints['99']&&x>=ints['99'].lower&&x<=ints['99'].upper?maxPdf*.04:null);
@@ -192,8 +213,8 @@ function render(j){
     options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:'#cfe0da'}}},scales:{x:{ticks:{color:'#8da49d'}},y:{beginAtZero:true,ticks:{color:'#8da49d'}}}}
   }));
 
-  mapData=j.map_points||[];
-  drawMap();
+  mapData=(j.map_points||[]).filter(p=>Number.isFinite(+p.lat)&&Number.isFinite(+p.lon));
+  setTimeout(drawMap,0);
   $('anomalyRows').innerHTML=(j.anomalies||[]).map(a=>'<tr><td>'+a.id+'</td><td>'+fmt(a.outlier_score)+'</td><td>'+fmt(a.probability_tail_area)+'</td><td>'+fmt(a.score_mahal)+'</td><td>'+fmt(a.score_probability)+'</td><td>'+fmt(a.score_spd)+'</td><td>'+fmt(a.score_procrustes)+'</td><td>'+fmt(a.score_spatial)+'</td><td>'+fmt(a.score_temporal)+'</td><td>'+fmt(a.distance_to_inflection)+'</td><td>'+a.consensus_methods+'</td><td>'+a.anomaly_reason+'</td><td>'+a.record_status+'</td></tr>').join('');
   $('comparison').innerHTML=(j.comparison||[]).map(v=>'<div class="pill"><b>'+v.variable+'</b><br><span class="k">'+(v.status==='ok'?(v.distribution+' · KS '+fmt(v.ks)+' · P95 '+fmt(v.probability_anomalies_95)):v.status)+'</span></div>').join('');
   $('downloads').innerHTML=Object.entries(j.outputs).map(([k,v])=>'<a href="'+v+'">'+k+'</a>').join('');
