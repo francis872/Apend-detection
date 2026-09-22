@@ -1,0 +1,13 @@
+{
+  "cleaning": {"rows_before":62941,"rows_after_basic_clean":62941,"rows_removed":0,"invalid_geometry_fixed":0},
+  "detector": {
+    "rows":62941,
+    "features":["BRIGHTNESS","BRIGHT_T31","FRP","SCAN","TRACK"],
+    "probability_feature":"FRP",
+    "best_distribution":"f",
+    "best_distribution_metrics":{"aic":403093.6814080258,"bic":403129.88122026034,"ks_stat":0.027019916783637576,"ks_pvalue":2.364406554641288e-40,"bhattacharyya":0.0011902133943067945,"fisher_rao":0.09755987972965476},
+    "thresholds":{"90":0.6890206701514116,"95":0.73152793886338,"99":0.8197005131790088},
+    "counts":{"90":6295,"95":3148,"99":630},
+    "note":"90/95/99 are empirical score quantiles: top 10%, 5%, 1% respectively."
+  }
+}
