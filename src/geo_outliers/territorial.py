@@ -9,7 +9,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from scipy import stats
-from shapely.geometry import shape
+from shapely.geometry import shape, mapping, LineString
 
 DB_PATH=Path("runtime/meridian_territorial.sqlite3")
 
@@ -23,6 +23,29 @@ def _connect():
       job_id TEXT,
       geometry_json TEXT NOT NULL,
       metadata_json TEXT,
+      created_at TEXT NOT NULL
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS territorial_objects(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      object_key TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      object_type TEXT NOT NULL,
+      job_id TEXT,
+      geometry_json TEXT NOT NULL,
+      metadata_json TEXT,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(object_key,version)
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS territorial_alerts(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      object_key TEXT NOT NULL,
+      job_id TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      alert_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      evidence_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     )""")
     return con
@@ -115,3 +138,88 @@ def delete_layer(layer_id:int)->bool:
     with _connect() as con:
         cur=con.execute("DELETE FROM layers WHERE id=?",(layer_id,))
     return cur.rowcount>0
+
+
+def _object_row(r):
+    d=dict(r); d["geometry"]=json.loads(d.pop("geometry_json")); d["metadata"]=json.loads(d.pop("metadata_json") or "{}"); return d
+
+
+def create_territorial_object(name:str,object_type:str,geometry:dict,job_id:str|None=None,metadata:dict|None=None,object_key:str|None=None)->dict:
+    import uuid
+    geom=shape(geometry)
+    if geom.is_empty or geom.geom_type not in {"Polygon","MultiPolygon"}: raise ValueError("Territorial objects require Polygon/MultiPolygon geometry")
+    key=object_key or uuid.uuid4().hex
+    with _connect() as con:
+        row=con.execute("SELECT MAX(version) v FROM territorial_objects WHERE object_key=?",(key,)).fetchone()
+        version=int(row["v"] or 0)+1
+        now=datetime.now(timezone.utc).isoformat()
+        con.execute("UPDATE territorial_objects SET status='superseded' WHERE object_key=? AND status='active'",(key,))
+        con.execute("INSERT INTO territorial_objects(object_key,version,name,object_type,job_id,geometry_json,metadata_json,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                    (key,version,name,object_type,job_id,json.dumps(geometry),json.dumps(metadata or {}),"active",now))
+        row=con.execute("SELECT * FROM territorial_objects WHERE object_key=? AND version=?",(key,version)).fetchone()
+    return _object_row(row)
+
+
+def list_territorial_objects(active_only:bool=True,limit:int=200)->list[dict]:
+    with _connect() as con:
+        if active_only: rows=con.execute("SELECT * FROM territorial_objects WHERE status='active' ORDER BY id DESC LIMIT ?",(min(limit,500),)).fetchall()
+        else: rows=con.execute("SELECT * FROM territorial_objects ORDER BY id DESC LIMIT ?",(min(limit,500),)).fetchall()
+    return [_object_row(r) for r in rows]
+
+
+def object_versions(object_key:str)->list[dict]:
+    with _connect() as con: rows=con.execute("SELECT * FROM territorial_objects WHERE object_key=? ORDER BY version DESC",(object_key,)).fetchall()
+    return [_object_row(r) for r in rows]
+
+
+def buffer_geometry(geometry:dict,distance_m:float)->dict:
+    if distance_m<=0: raise ValueError("distance_m must be positive")
+    geom=shape(geometry)
+    gs=gpd.GeoSeries([geom],crs=4326)
+    local=gs.estimate_utm_crs()
+    buffered=gs.to_crs(local).buffer(distance_m).to_crs(4326).iloc[0]
+    return mapping(buffered)
+
+
+def corridor_geometry(coordinates:list,distance_m:float)->dict:
+    if len(coordinates)<2: raise ValueError("Corridor requires at least two coordinates")
+    return buffer_geometry(mapping(LineString(coordinates)),distance_m)
+
+
+def intersect_geometries(a:dict,b:dict)->dict:
+    result=shape(a).intersection(shape(b))
+    if result.is_empty:return {"type":"GeometryCollection","geometries":[]}
+    return mapping(result)
+
+
+def territorial_findings(summary:dict,name:str)->list[dict]:
+    findings=[]
+    if summary["critical_99"]>0:
+        findings.append({"severity":"critical","type":"critical_concentration","title":f"Critical observations inside {name}","evidence":{"count":summary["critical_99"],"rows":summary["rows"]}})
+    if summary.get("mean_spatial") is not None and summary["mean_spatial"]>=.75:
+        findings.append({"severity":"high","type":"spatial_signal","title":f"Elevated spatial signal inside {name}","evidence":{"mean_spatial":summary["mean_spatial"]}})
+    if summary.get("mean_temporal") is not None and summary["mean_temporal"]>=.75:
+        findings.append({"severity":"high","type":"temporal_signal","title":f"Elevated temporal signal inside {name}","evidence":{"mean_temporal":summary["mean_temporal"]}})
+    return findings
+
+
+def evaluate_object(job_dir:Path,obj:dict)->dict:
+    gdf=load_analysis_layer(job_dir); selected=select_polygon(gdf,obj["geometry"]); summary=summarize_region(selected)
+    findings=territorial_findings(summary,obj["name"])
+    alerts=[]
+    now=datetime.now(timezone.utc).isoformat()
+    with _connect() as con:
+        for f in findings:
+            con.execute("INSERT INTO territorial_alerts(object_key,job_id,severity,alert_type,title,evidence_json,created_at) VALUES(?,?,?,?,?,?,?)",
+                        (obj["object_key"],obj.get("job_id") or job_dir.name,f["severity"],f["type"],f["title"],json.dumps(f["evidence"]),now))
+            alerts.append({**f,"created_at":now})
+    return {"object":obj,"summary":summary,"findings":findings,"alerts":alerts}
+
+
+def list_territorial_alerts(object_key:str|None=None,limit:int=200)->list[dict]:
+    with _connect() as con:
+        rows=con.execute("SELECT * FROM territorial_alerts WHERE object_key=? ORDER BY id DESC LIMIT ?",(object_key,min(limit,500))).fetchall() if object_key else con.execute("SELECT * FROM territorial_alerts ORDER BY id DESC LIMIT ?",(min(limit,500),)).fetchall()
+    out=[]
+    for r in rows:
+        d=dict(r); d["evidence"]=json.loads(d.pop("evidence_json")); out.append(d)
+    return out
