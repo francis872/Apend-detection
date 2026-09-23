@@ -6,11 +6,11 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{--bg:#07100e;--card:#0f1c19;--line:#20332e;--txt:#edf7f3;--muted:#8da49d;--a:#c7b5cf;--b:#a998b3;--side:#091411}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px Inter,system-ui,sans-serif}.shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}.sidebar{position:sticky;top:0;height:100vh;background:var(--side);border-right:1px solid var(--line);padding:24px 16px}.brand{text-align:center;font-size:20px;font-weight:500;letter-spacing:.16em;color:#c7b5cf}.brandLogo{display:block;width:108px;height:105px;object-fit:cover;object-position:50% 18%;margin:0 auto 8px;mix-blend-mode:screen;filter:brightness(1.25) contrast(.9)}.brand span{display:block}.brand small{display:block;color:#9e8ca8;font-size:8px;letter-spacing:.20em;margin-top:6px}.nav{margin-top:30px}.nav a{display:block;color:var(--muted);text-decoration:none;padding:9px 10px;border-radius:9px;margin:3px 0}.nav a:hover,.nav a.active{background:#12231f;color:var(--txt)}.navLabel{font-size:10px;color:#60756e;letter-spacing:.14em;margin:20px 10px 7px}.workspace{min-width:0}main{max-width:1450px;margin:auto;padding:26px}
-.top,.head,.actions{display:flex;justify-content:space-between;gap:12px;align-items:center}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:14px}
-h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;font-size:11px}.muted,.k{color:var(--muted)}button,.upload,select,input{border:1px solid var(--line);background:#12231f;color:var(--txt);padding:9px 12px;border-radius:10px}.upload{background:var(--a);color:#07100e;font-weight:800;cursor:pointer}#file{display:none}
-.grid{display:grid;gap:12px}.stats{grid-template-columns:repeat(5,1fr)}.charts{grid-template-columns:1fr 1fr}.v{font-size:24px;font-weight:800;margin-top:5px}.chart{height:300px}.chartNote{font-size:11px;color:var(--muted);margin-top:6px}
-#map{height:520px;border-radius:12px}.mapLegend{background:#0f1c19;color:#edf7f3;padding:10px 12px;border-radius:10px;border:1px solid #20332e;line-height:1.7;box-shadow:0 4px 18px rgba(0,0,0,.25)}.mapLegend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;border:1px solid rgba(255,255,255,.55)}.mapStats{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mapStat{padding:7px 10px;border:1px solid var(--line);background:#091411;border-radius:10px;font-size:12px}.progress{height:12px;background:#091411;border-radius:8px;overflow:hidden}.bar{height:100%;width:0;background:var(--a);transition:.3s}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px Inter,system-ui,sans-serif}.shell{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh}.sidebar{position:sticky;top:0;height:100vh;background:linear-gradient(180deg,#0b0d10 0%,#101114 100%);border-right:1px solid #232329;padding:18px 16px}.brand{text-align:center;font-size:20px;font-weight:500;letter-spacing:.16em;color:#c7b5cf}.brandLogo{display:block;width:108px;height:105px;object-fit:cover;object-position:50% 18%;margin:0 auto 8px;mix-blend-mode:screen;filter:brightness(1.25) contrast(.9)}.brand span{display:block}.brand small{display:block;color:#9e8ca8;font-size:8px;letter-spacing:.20em;margin-top:6px}.nav{margin-top:30px}.nav a{display:flex;align-items:center;gap:9px;color:#b7b4bb;text-decoration:none;padding:10px 12px;border-radius:8px;margin:3px 0}.nav a:hover,.nav a.active{background:linear-gradient(90deg,rgba(199,181,207,.28),rgba(199,181,207,.08));color:#fff}.navLabel{font-size:10px;color:#77727d;letter-spacing:.14em;margin:20px 10px 7px}.workspace{min-width:0;background:radial-gradient(circle at 55% 0%,#18191d 0,#101114 38%,#0b0c0f 100%)}main{max-width:1500px;margin:auto;padding:0 22px 28px}
+.top,.head,.actions{display:flex;justify-content:space-between;gap:12px;align-items:center}.card{background:linear-gradient(180deg,#18191d,#141519);border:1px solid #292a30;border-radius:13px;padding:16px;margin-top:14px;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+h1{margin:4px 0;font-size:28px;font-weight:500;letter-spacing:-.02em}.eyebrow{color:var(--a);font-weight:600;letter-spacing:.14em;font-size:10px}.muted,.k{color:var(--muted)}button,.upload,select,input{border:1px solid var(--line);background:#12231f;color:var(--txt);padding:9px 12px;border-radius:10px}.upload{background:var(--a);color:#07100e;font-weight:800;cursor:pointer}#file{display:none}
+.grid{display:grid;gap:12px}.stats{grid-template-columns:repeat(4,1fr)}.charts{grid-template-columns:1fr 1fr}.v{font-size:27px;font-weight:500;margin-top:8px}.chart{height:300px}.chartNote{font-size:11px;color:var(--muted);margin-top:6px}
+#map{height:560px;border-radius:12px;background:#0d1014}.mapLegend{background:#0f1c19;color:#edf7f3;padding:10px 12px;border-radius:10px;border:1px solid #20332e;line-height:1.7;box-shadow:0 4px 18px rgba(0,0,0,.25)}.mapLegend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;border:1px solid rgba(255,255,255,.55)}.mapStats{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mapStat{padding:7px 10px;border:1px solid var(--line);background:#091411;border-radius:10px;font-size:12px}.progress{height:12px;background:#091411;border-radius:8px;overflow:hidden}.bar{height:100%;width:0;background:var(--a);transition:.3s}
 .weights{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.weights input{width:100%}.table{overflow:auto;max-height:430px}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{color:var(--muted)}
 .filters{display:flex;gap:8px;flex-wrap:wrap}.downloads a{color:var(--a);margin-right:12px}.compare{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.pill{background:#091411;padding:10px;border-radius:10px;border:1px solid var(--line)}
 @media(max-width:900px){.shell{grid-template-columns:1fr}.sidebar{display:none}.stats,.charts,.weights,.compare{grid-template-columns:1fr 1fr}}@media(max-width:600px){.stats,.charts,.weights,.compare{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
@@ -20,8 +20,13 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 <div class="navLabel">ANALYSIS</div><a href="#detect">Detect</a><a href="#probability">Probability</a><a href="#compare">Compare</a>
 <div class="navLabel">RESULTS</div><a href="#mapSection">Map</a><a href="#anomalies">Anomalies</a><a href="#exports">Report & Export</a>
 </nav></aside><div class="workspace"><main id="overview">
-<div class="top"><div><div class="eyebrow">GEOSPATIAL INTELLIGENCE</div><h1>Meridian</h1><div class="muted">Detect · Explore · Compare · Explain · Report</div></div>
-<div class="actions"><label class="upload">Seleccionar ZIP<input id="file" type="file" accept=".zip" multiple></label><button id="inspect" disabled>Inspeccionar</button><button id="run" disabled>Ejecutar</button></div></div>
+<div class="commandBar" style="height:66px;margin:0 -22px 18px;padding:0 22px;border-bottom:1px solid #24252a;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:500;background:rgba(12,13,16,.92);backdrop-filter:blur(16px)">
+  <div style="flex:1;max-width:720px;position:relative"><input id="globalSearch" placeholder="Search location, dataset, or analysis…" style="width:100%;background:#1a1b1f;border-color:#303138;padding-left:38px"><span style="position:absolute;left:13px;top:9px;color:#918b97">⌕</span></div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="mapStat">Meridian Workspace</span><span style="width:34px;height:34px;border-radius:50%;background:#c7b5cf;color:#1a151d;display:grid;place-items:center;font-weight:700">M</span></div>
+</div>
+
+<div class="top"><div><div class="eyebrow">GEOSPATIAL INTELLIGENCE WORKSPACE</div><h1 id="greeting">Welcome to Meridian.</h1><div class="muted">Geospatial intelligence for a more livable planet.</div></div>
+<div class="actions"><label class="upload">+ New Source<input id="file" type="file" accept=".zip" multiple></label><button id="inspect" disabled>Inspect</button><button id="run" disabled>Start Analysis</button></div></div>
 
 <section class="card" id="source"><div class="head"><div><b>1 · Data source</b><div class="k">Selecciona uno o más ZIP Shapefile. La inspección comienza automáticamente.</div></div><div><select id="mode"><option value="default">Default</option><option value="advanced">Advanced</option></select></div></div>
 <div id="selectedFiles" class="k" style="margin-top:10px">Ningún archivo seleccionado.</div><div class="actions" style="justify-content:flex-start;margin-top:10px"><label><input type="checkbox" id="autoRun" checked> Analizar automáticamente después de inspeccionar</label><label>Variable principal <select id="variable"><option>FRP</option></select></label><label>Comparar <select id="compareVars" multiple size="4"></select></label></div>
@@ -29,10 +34,30 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 
 <section class="card" id="detect"><div class="head"><div><b>2 · Detection engine</b><div class="k">Meridian valida, modela y explica las anomalías.</div></div><div><b id="stage">Listo</b> · <span id="pct">0%</span></div></div><div class="progress"><div class="bar" id="bar"></div></div><div class="k" id="status">Selecciona los archivos y pulsa Inspeccionar.</div></section>
 
-<section class="grid stats">
-<div class="card"><div class="k">Observaciones</div><div class="v" id="rows">—</div></div><div class="card"><div class="k">Mejor ajuste comparativo</div><div class="v" id="best">—</div></div>
-<div class="card"><div class="k">Outliers 99%</div><div class="v" id="o99">—</div></div><div class="card"><div class="k">Ruido probable</div><div class="v" id="noise">—</div></div><div class="card"><div class="k">Tiempo</div><div class="v" id="elapsed">—</div></div>
+<section class="grid stats" style="margin-top:12px">
+<div class="card"><div class="k">Active Dataset</div><div class="v" id="activeDataset">No source</div><div class="k" id="datasetMeta">Waiting for data</div></div>
+<div class="card"><div class="k">Observations</div><div class="v" id="rows">—</div><div class="k" id="variableCount">— variables</div></div>
+<div class="card"><div class="k">Detected Anomalies</div><div class="v" id="o99">—</div><div class="k">Critical percentile · 99%</div></div>
+<div class="card"><div class="k">Best Comparative Fit</div><div class="v" id="best">—</div><div class="k">Distribution ranking</div></div>
 </section>
+
+<section class="grid" style="grid-template-columns:minmax(0,1.8fr) minmax(280px,.8fr);align-items:stretch;margin-top:12px">
+  <div class="card" style="margin-top:0;padding:0;overflow:hidden">
+    <div class="head" style="padding:15px 16px;border-bottom:1px solid #292a30"><div><b>Operational Map</b><div class="k">Live geospatial view of Meridian findings</div></div><a href="#mapSection" style="color:var(--a);text-decoration:none">Open full map →</a></div>
+    <div id="overviewMap" style="height:390px;background:#0b0e12"></div>
+  </div>
+  <div class="card" style="margin-top:0"><div class="head"><b>Recent Activity</b><span class="k">Live</span></div><div id="activityList" style="margin-top:8px">
+    <div class="pill"><b>Workspace ready</b><br><span class="k">Connect a data source to begin.</span></div>
+  </div></div>
+</section>
+
+<section class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+  <div class="card" style="margin-top:0"><b>Land, data and people<br>in the same direction.</b><p class="k">Advanced analytics for a more resilient tomorrow.</p><a href="#source" style="color:var(--a);text-decoration:none">Start analysis →</a></div>
+  <div class="card" style="margin-top:0"><b>Integrate real-world data</b><p class="k">NASA FIRMS · Open-Meteo · Your Data</p><a href="#live" style="color:var(--a);text-decoration:none">Manage connections →</a></div>
+  <div class="card" style="margin-top:0"><b>Export and share</b><p class="k">GeoPackage · CSV · QGIS · Report</p><a href="#exports" style="color:var(--a);text-decoration:none">Generate report →</a></div>
+</section>
+
+<section class="card" style="display:none"><div id="noise">—</div><div id="elapsed">—</div></section>
 
 <section class="grid charts" id="probability">
 <div class="card"><b>Histograma + PDF + áreas 90/95/99</b><div class="chart"><canvas id="pdfChart"></canvas></div></div>
@@ -60,7 +85,19 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 </main><script>
 const $=id=>document.getElementById(id),fmt=n=>Number.isFinite(+n)?(+n).toLocaleString('es-CO',{maximumFractionDigits:4}):'—';
 let charts=[],map=L.map('map').setView([4.6,-74.1],5),layer=L.layerGroup().addTo(map),mapData=[];
+const overviewMap=L.map('overviewMap',{zoomControl:false,attributionControl:false}).setView([4.6,-74.1],5);
+const overviewLayer=L.layerGroup().addTo(overviewMap);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(overviewMap);
+const activity=[];
+function addActivity(title,detail){
+  activity.unshift({title,detail,time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})});
+  activity.splice(5);
+  $('activityList').innerHTML=activity.map(x=>'<div class="pill" style="margin-bottom:8px"><b>'+x.title+'</b><br><span class="k">'+x.detail+' · '+x.time+'</span></div>').join('');
+}
+const hour=new Date().getHours();
+$('greeting').textContent=(hour<12?'Good morning.':hour<18?'Good afternoon.':'Good evening.');
+
 const mapStyle={
   normal:{color:'#4da3ff',fillColor:'#4da3ff',radius:3},
   '90':{color:'#f0c419',fillColor:'#f0c419',radius:5},
@@ -109,7 +146,9 @@ async function inspectSelected(){
     $('compareVars').innerHTML=j.numeric_variables.map(v=>'<option selected>'+v+'</option>').join('');
     if(j.numeric_variables.includes('FRP'))$('variable').value='FRP';
     $('stage').textContent='inspected';$('bar').style.width='100%';$('pct').textContent='100%';
-    $('status').textContent='ZIP leído correctamente · '+j.rows+' registros · CRS '+(j.crs||'sin CRS')+' · '+j.numeric_variables.length+' variables numéricas.';
+    $('status').textContent='Source validated · '+j.rows+' records · CRS '+(j.crs||'unknown')+' · '+j.numeric_variables.length+' numeric variables.';
+    $('variableCount').textContent=j.numeric_variables.length+' variables';
+    addActivity('Data source validated',j.rows+' observations · '+j.numeric_variables.length+' numeric variables');
     $('run').disabled=!j.valid;
     if(j.valid && $('autoRun').checked){
       $('status').textContent+=' · Iniciando análisis completo…';
@@ -123,7 +162,8 @@ async function inspectSelected(){
 
 $('file').addEventListener('change',()=>{
   const fs=[...$('file').files];
-  $('selectedFiles').innerHTML=fs.length?'<b>Seleccionados:</b> '+fs.map(f=>f.name+' ('+humanSize(f.size)+')').join(' · '):'Ningún archivo seleccionado.';
+  $('selectedFiles').innerHTML=fs.length?'<b>Selected:</b> '+fs.map(f=>f.name+' ('+humanSize(f.size)+')').join(' · '):'No source selected.';
+  if(fs.length){$('activeDataset').textContent=fs.length===1?fs[0].name:fs.length+' files';$('datasetMeta').textContent='Local geospatial source';addActivity('New data source selected',$('activeDataset').textContent)}
   $('inspect').disabled=!fs.length;
   $('run').disabled=true;
   if(fs.length)inspectSelected();
@@ -166,7 +206,7 @@ async function poll(id){
         clearInterval(timer);
         const rr=await fetch('/jobs/'+id+'/result');
         if(!rr.ok)throw new Error('El análisis terminó pero el resultado no pudo cargarse.');
-        render(await rr.json());$('run').disabled=false;
+        render(await rr.json());$('run').disabled=false;addActivity('Analysis completed','Meridian detection pipeline finished');
       }
       if(p.stage==='failed'){clearInterval(timer);$('run').disabled=false;$('status').textContent='ANÁLISIS FALLÓ: '+p.message}
     }catch(e){
@@ -235,7 +275,15 @@ function render(j){
   }));
 
   mapData=(j.map_points||[]).filter(p=>Number.isFinite(+p.lat)&&Number.isFinite(+p.lon));
-  setTimeout(drawMap,0);
+  overviewLayer.clearLayers();
+  const overviewBounds=[];
+  mapData.forEach(p=>{
+    const style=p.status==='probable_noise'?mapStyle.noise:(mapStyle[String(p.level||'normal')]||mapStyle.normal);
+    L.circleMarker([p.lat,p.lon],{radius:Math.max(2,style.radius-2),color:style.color,fillColor:style.fillColor,weight:0,fillOpacity:.7}).addTo(overviewLayer);
+    overviewBounds.push([p.lat,p.lon]);
+  });
+  if(overviewBounds.length) overviewMap.fitBounds(overviewBounds,{padding:[14,14],maxZoom:7});
+  setTimeout(()=>{drawMap();overviewMap.invalidateSize()},0);
   $('anomalyRows').innerHTML=(j.anomalies||[]).map(a=>'<tr><td>'+a.id+'</td><td>'+fmt(a.outlier_score)+'</td><td>'+fmt(a.probability_tail_area)+'</td><td>'+fmt(a.score_mahal)+'</td><td>'+fmt(a.score_probability)+'</td><td>'+fmt(a.score_spd)+'</td><td>'+fmt(a.score_procrustes)+'</td><td>'+fmt(a.score_spatial)+'</td><td>'+fmt(a.score_temporal)+'</td><td>'+fmt(a.distance_to_inflection)+'</td><td>'+a.consensus_methods+'</td><td>'+a.anomaly_reason+'</td><td>'+a.record_status+'</td></tr>').join('');
   const cov=j.analysis_status||{};
   $('analysisCoverage').textContent='Variables numéricas detectadas: '+fmt(cov.numeric_detected)+' · comparadas: '+fmt(cov.variables_compared)+' · puntos en mapa: '+fmt(cov.map_points)+' · anomalías listadas: '+fmt(cov.anomaly_rows);
@@ -310,7 +358,8 @@ $('runFirms').onclick=async()=>{
     const r=await fetch('/live/firms/analyze',{method:'POST',body:fd});
     const j=await r.json();
     if(!r.ok)throw new Error(j.detail||('HTTP '+r.status));
-    $('liveStatus').textContent='NASA FIRMS entregó '+fmt(j.rows)+' observaciones. Ejecutando motor Meridian…';
+    $('liveStatus').textContent='NASA FIRMS delivered '+fmt(j.rows)+' observations. Running Meridian…';
+    $('activeDataset').textContent='NASA FIRMS';$('datasetMeta').textContent=j.source+' · live';$('rows').textContent=fmt(j.rows);addActivity('NASA FIRMS connected',fmt(j.rows)+' live observations');
     poll(j.job_id);
   }catch(e){
     $('stage').textContent='error';$('status').textContent='NASA FIRMS: '+e.message;$('liveStatus').textContent=e.message;
