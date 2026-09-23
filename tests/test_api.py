@@ -17,7 +17,7 @@ def test_health_endpoint():
     assert r.status_code==200
     body=r.json()
     assert body["service"]=="Meridian"
-    assert body["version"]=="4.4.0"
+    assert body["version"]=="4.5.0"
     assert "migrations" in body
 
 
@@ -64,3 +64,10 @@ def test_inspect_rejects_incomplete_shapefile_zip():
     r=client.post("/inspect",files=[("files",("sample.zip",mem.getvalue(),"application/zip"))])
     assert r.status_code==422
     assert "missing" in r.json()["detail"].lower()
+
+
+def test_gistar_api_contract():
+    points=[{"longitude":float(i%5),"latitude":float(i//5),"value":float(i)} for i in range(25)]
+    r=client.post("/v1/spatial/hotspots/gi-star",json={"points":points,"permutations":19,"k":4})
+    assert r.status_code==200
+    assert r.json()["causal_claim"] is False
