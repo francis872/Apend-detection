@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
+import time
+
+from .event_store import append_event
 
 
 @dataclass
@@ -26,10 +29,13 @@ class MeridianOrchestrator:
         self.job_id=job_id
         self.started=datetime.now(timezone.utc).isoformat()
         self.decisions:list[OrchestratorDecision]=[]
+        append_event(job_id,"job_started",stage="orchestrator",payload={"started_utc":self.started})
 
     def record(self,stage,status,action,reason,retryable=False,strategy=None):
         d=OrchestratorDecision(stage,status,action,reason,retryable,strategy)
         self.decisions.append(d)
+        severity="error" if status=="blocked" else ("warning" if status in {"warning","degraded","adapted"} else "info")
+        append_event(self.job_id,"decision",stage=stage,severity=severity,payload=asdict(d))
         return d
 
     def gate_source(self,gdf)->dict:
@@ -101,6 +107,34 @@ class MeridianOrchestrator:
         self.record("enrichment","passed","continue","External context stage completed without blocking core analysis")
         return {"status":"passed"}
 
+    def run_with_retry(self,stage,operation,max_attempts=3,base_delay=.35,fallback=None):
+        """Run a transient operation with bounded exponential retry and optional fallback."""
+        last=None
+        for attempt in range(1,max_attempts+1):
+            try:
+                value=operation()
+                if attempt>1:self.record(stage,"recovered","continue",f"Recovered on attempt {attempt}",False,"retry")
+                return value
+            except Exception as e:
+                last=e
+                append_event(self.job_id,"retry_failed",stage=stage,severity="warning",payload={"attempt":attempt,"max_attempts":max_attempts,"error":str(e)})
+                if attempt<max_attempts:time.sleep(base_delay*(2**(attempt-1)))
+        if fallback is not None:
+            self.record(stage,"degraded","continue",f"Primary strategy failed after {max_attempts} attempts; fallback activated: {last}",False,"fallback")
+            return fallback(last)
+        self.record(stage,"blocked","stop",f"Failed after {max_attempts} attempts: {last}",False,"retry_exhausted")
+        raise last
+
+    def health_snapshot(self)->dict:
+        result={
+            "job_id":self.job_id,
+            "decision_count":len(self.decisions),
+            "blocked":sum(x.status=="blocked" for x in self.decisions),
+            "warnings":sum(x.status in {"warning","degraded","adapted"} for x in self.decisions),
+            "recoveries":sum(x.status=="recovered" for x in self.decisions),
+            "last_stage":self.decisions[-1].stage if self.decisions else None,
+        }
+
     def finalize(self)->dict:
         blocked=any(x.status=="blocked" for x in self.decisions)
         warnings=sum(x.status in {"warning","degraded","adapted"} for x in self.decisions)
@@ -111,4 +145,7 @@ class MeridianOrchestrator:
             "status":"blocked" if blocked else ("complete_with_warnings" if warnings else "complete"),
             "warnings":warnings,
             "decisions":[asdict(x) for x in self.decisions],
+            "health":self.health_snapshot(),
         }
+        append_event(self.job_id,"job_orchestration_finalized",stage="orchestrator",severity="error" if blocked else "info",payload={"status":result["status"],"warnings":warnings})
+        return result
