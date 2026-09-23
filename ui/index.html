@@ -127,7 +127,10 @@ h1{margin:4px 0;font-size:28px;font-weight:500;letter-spacing:-.02em}.eyebrow{co
 <div class="card"><b>TIME LINE</b><input id="territorialTime" class="timelineRange" type="range" min="0" max="100" value="100"><div id="territorialTimeLabel" class="muted">Latest available period</div></div></div>
 <div class="territorialPanel"><h3>Layers</h3><div class="layerToggle" id="territorialLayerToggles">
 <button data-layer="social">Social</button><button data-layer="economic">Economic</button><button data-layer="ecological">Ecological</button><button data-layer="satellite">Satellite</button><button data-layer="land">Land Use</button><button data-layer="infrastructure">Infrastructure</button><button data-layer="events">Events</button><button data-layer="networks">Networks</button><button data-layer="corridors">Corridors</button></div>
-<h3 style="margin-top:18px">Territorial Profile</h3><div id="territorialProfile" class="muted">Select a territory, event, node or corridor on the map.</div>
+<h3 style="margin-top:18px">Territorial Profile T(i,t)</h3>
+<div style="display:flex;gap:6px;margin-bottom:8px"><input id="territoryProfileId" placeholder="Territory ID" style="min-width:0"><button id="loadTerritoryProfile">Load</button></div>
+<div id="territorialProfile" class="muted">Select or enter a territory to reconstruct its temporal feature vector.</div>
+<div id="territorialChange" style="margin-top:12px"></div>
 <h3 style="margin-top:18px">Evidence</h3><div id="territorialEvidence" class="muted">Every analytical result keeps method, period, CRS, sources and limitations.</div></div></div></section>
 
 <section class="card moduleView" data-module-view="corridor-explorer" style="display:none">
@@ -595,4 +598,23 @@ document.querySelectorAll('[data-view="territorial-explorer"]').forEach(x=>x.add
 document.querySelectorAll('[data-view="corridor-explorer"]').forEach(x=>x.addEventListener('click',()=>setTimeout(ensureCorridorExplorer,50)));
 if(location.hash==='#territorial-explorer')setTimeout(ensureTerritorialExplorer,300);
 if(location.hash==='#corridor-explorer')setTimeout(ensureCorridorExplorer,300);
+</script>
+<script>
+async function loadTerritorialProfile(){
+ const id=document.getElementById('territoryProfileId')?.value?.trim();if(!id)return;
+ const box=document.getElementById('territorialProfile'),chg=document.getElementById('territorialChange');
+ try{
+  const r=await fetch('/v1/territorial/profile/'+encodeURIComponent(id));if(!r.ok)throw new Error(await r.text());const p=await r.json();
+  const snaps=p.snapshots||[];const last=snaps[snaps.length-1];
+  if(!last){box.textContent='No temporal feature vectors stored for '+id;chg.innerHTML='';return;}
+  const groups=last.groups||{};box.innerHTML=Object.entries(groups).map(([g,v])=>'<div class="alertItem"><b>'+g.replace('_features','').toUpperCase()+'</b><pre style="white-space:pre-wrap">'+JSON.stringify(v,null,2)+'</pre></div>').join('');
+  const change=p.change||{};const signals=change.signals||{};
+  chg.innerHTML='<b>Temporal Evolution</b><br><span class="mapStat">'+(change.status||'baseline_building')+'</span><pre style="white-space:pre-wrap">'+JSON.stringify(signals,null,2)+'</pre><span class="muted">Robust change signals use rolling median/MAD. Score is not probability.</span>';
+  const slider=document.getElementById('territorialTime'),label=document.getElementById('territorialTimeLabel');
+  if(slider){slider.max=Math.max(0,snaps.length-1);slider.value=snaps.length-1;slider.oninput=()=>{const s=snaps[Number(slider.value)];label.textContent=s?s.timestamp:'No period';};}
+  if(label)label.textContent=last.timestamp;
+  document.getElementById('territorialEvidence').innerHTML='<b>Lineage</b><pre style="white-space:pre-wrap">'+JSON.stringify(last.lineage||{},null,2)+'</pre><b>Sources</b><pre style="white-space:pre-wrap">'+JSON.stringify(last.source_refs||[],null,2)+'</pre>';
+ }catch(e){box.textContent='Profile unavailable: '+e.message;}
+}
+document.getElementById('loadTerritoryProfile')?.addEventListener('click',loadTerritorialProfile);
 </script></body></html>
