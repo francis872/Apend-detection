@@ -30,7 +30,7 @@ from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
 VERSION="1.1.0"
-app=FastAPI(title="Apend Detection API",version=VERSION)
+app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
 
@@ -176,7 +176,7 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
 
 
 @app.get("/health")
-def health(): return {"status":"ok","service":"Apend Detection","version":VERSION}
+def health(): return {"status":"ok","service":"Meridian","version":VERSION}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
