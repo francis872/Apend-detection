@@ -46,9 +46,10 @@ from .socio_ecological import register_dataset, list_datasets, lineage, create_e
 from .network_corridor import build_territorial_graph, shortest_path, detect_network_corridors
 from .spatial_operations import spatial_operation
 from .corridor_store import save_corridors, list_corridors, get_corridor
+from .territorial_fusion import fuse_features, feature_history, temporal_profile, land_use_divergence
 from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts, monitor_object, monitor_all_objects, monitoring_history, territorial_monitoring_dashboard, create_watchlist, list_watchlists, subscribe_object, create_alert_rule, list_alert_rules, process_watchlist_alerts, list_incidents, operations_center
 
-VERSION="4.3.0"
+VERSION="4.4.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 MIGRATION_RESULT=migrate_all()
@@ -275,6 +276,25 @@ def health():
 
 
 
+
+
+@app.post("/v1/territorial/fusion")
+def territorial_fusion_api(payload:dict):
+    try:return fuse_features(payload)
+    except ValueError as e:raise HTTPException(400,str(e))
+
+@app.get("/v1/territorial/profile/{territory_id}")
+def territorial_profile_api(territory_id:str,window:int=8):
+    return temporal_profile(territory_id,window)
+
+@app.get("/v1/territorial/features/{territory_id}")
+def territorial_features_api(territory_id:str):
+    return {"territory_id":territory_id,"snapshots":feature_history(territory_id)}
+
+@app.post("/v1/territorial/land-use/divergence")
+def land_use_divergence_api(payload:dict):
+    try:return land_use_divergence(payload,True)
+    except ValueError as e:raise HTTPException(400,str(e))
 
 @app.post("/v1/spatial/operations")
 def spatial_operations_api(payload:dict):
@@ -735,7 +755,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["socio_ecological_spatialization","territorial_snapshots","geodata_catalog","data_lineage","spatial_events","territorial_indicators","gini_concentration","spatial_correlation","territorial_distance_model","corridor_candidates","territorial_network_graph","network_centrality","shortest_path","validated_corridor_detection","spatial_join_service","overlay","nearest_neighbor","metric_buffer","raster_processing","remote_cog_window","cloud_masking","spectral_indices","zonal_statistics","eo_territorial_intelligence","euclidean_intelligence","euclidean_baseline_distance","earth_observation_stac","sentinel_2","landsat","modis","spectral_index_planning","territorial_scene_search","data_quality_engine","geometry_quality","coordinate_validation","quality_gate","permutation_lisa","significant_hotspots","spatial_density","spatial_outliers","incident_management","territorial_intelligence_briefs","incident_ownership","acknowledgement","investigation_timeline","operations_center","territorial_watchlists","alert_rules","alert_deduplication","alert_escalation","alert_resolution","territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["socio_ecological_spatialization","territorial_snapshots","geodata_catalog","data_lineage","spatial_events","territorial_indicators","gini_concentration","spatial_correlation","territorial_distance_model","corridor_candidates","territorial_network_graph","network_centrality","shortest_path","validated_corridor_detection","territorial_fusion","temporal_feature_store","land_use_divergence","territorial_profile","spatial_join_service","overlay","nearest_neighbor","metric_buffer","raster_processing","remote_cog_window","cloud_masking","spectral_indices","zonal_statistics","eo_territorial_intelligence","euclidean_intelligence","euclidean_baseline_distance","earth_observation_stac","sentinel_2","landsat","modis","spectral_index_planning","territorial_scene_search","data_quality_engine","geometry_quality","coordinate_validation","quality_gate","permutation_lisa","significant_hotspots","spatial_density","spatial_outliers","incident_management","territorial_intelligence_briefs","incident_ownership","acknowledgement","investigation_timeline","operations_center","territorial_watchlists","alert_rules","alert_deduplication","alert_escalation","alert_resolution","territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
