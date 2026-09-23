@@ -484,3 +484,20 @@ Endpoints:
 Pipeline inicial: Territorial Object -> WGS84 bounds -> STAC Search -> Scene Catalog -> Asset/Index Plan -> future Raster Processing -> Meridian Monitoring.
 
 El siguiente subbloque de 3.0 es Raster Processing: lectura remota por ventana, cloud masking, escalamiento por producto, calculo real de indices, zonal statistics y snapshots EO para Territorial Monitoring.
+
+
+## Meridian 3.1 - Euclidean Computational Intelligence
+
+Meridian incorpora un modelo de inteligencia computacional basado en distancia euclidiana robusta. Antes de medir distancia, las variables se normalizan con RobustScaler para evitar que unidades grandes dominen automaticamente la geometria. El centro de referencia es la mediana multivariada del baseline.
+
+El modelo produce distancia de caracteristicas, distancia espacial opcional, scores robustos, score combinado, niveles empiricos 90/95/99 y contribucion relativa de cada variable. Estos valores son medidas geometricas/indices, no probabilidades.
+
+Para Earth Observation, un vector territorial puede estar formado por NDVI, NDMI, NBR, NDWI, LST y otras estadisticas zonales. La distancia entre el snapshot actual y su baseline permite cuantificar cuanto se alejo el estado territorial previo antes de enviar la evidencia al motor de cambio y alertas.
+
+Endpoints:
+- POST /v1/intelligence/euclidean
+- POST /v1/intelligence/euclidean/baseline
+
+Arquitectura objetivo: STAC -> Raster Processing -> Cloud Mask -> Spectral Indices -> Zonal Feature Vector -> Robust Euclidean Intelligence -> Historical Baseline -> Change Detection -> Alert.
+
+La distancia euclidiana no sustituye Moran/LISA, probabilidad, Fisher-Rao, SPD ni analisis temporal. Funciona como una nueva señal geometrica dentro del ensemble y resulta especialmente interpretable para comparar estados territoriales multivariados.
