@@ -206,3 +206,21 @@ El pipeline automatico es:
 `Source -> Format Adapter -> Geometry -> Profiling -> Domain Inference -> Semantic Contract -> Analysis Profile -> Meridian Core -> Intelligence`.
 
 Meridian conserva la fuente original, registra `_source_file`, valida coordenadas y no inventa geometria cuando no existe informacion espacial suficiente. En ese caso la ingesta se bloquea con un error explicable.
+
+
+## Meridian 1.6 - Auto-Enrichment
+
+Autopilot puede ahora planificar y ejecutar enriquecimiento externo segun el Domain Pack, geometria, periodo y variables disponibles.
+
+La primera politica implementada es deliberadamente conservadora: `context_only`. Los datos externos se conservan como evidencia contextual y **no modifican silenciosamente el anomaly score**. Tampoco se generan afirmaciones causales a partir de correlaciones.
+
+- Open-Meteo se recomienda para dominios donde el contexto meteorologico es relevante y faltan variables equivalentes.
+- NASA FIRMS se planifica para Environment, Risk y Earth Observation cuando falta contexto termico/incendios; solo se ejecuta si `NASA_FIRMS_MAP_KEY` esta configurada.
+- Cada resultado conserva proveedor, estado, fecha de recuperacion y resumen de procedencia.
+- Fallos de una fuente externa se registran como evidencia no disponible y no destruyen el analisis principal.
+
+Nuevo endpoint: `POST /v1/enrichment/plan`.
+
+Pipeline 1.6:
+
+`Source -> Universal Ingestion -> Autopilot -> Semantic Contract -> Enrichment Plan -> Meridian Core -> Context Retrieval -> Intelligence + Provenance`.
