@@ -131,6 +131,8 @@ h1{margin:4px 0;font-size:28px;font-weight:500;letter-spacing:-.02em}.eyebrow{co
 <div style="display:flex;gap:6px;margin-bottom:8px"><input id="territoryProfileId" placeholder="Territory ID" style="min-width:0"><button id="loadTerritoryProfile">Load</button></div>
 <div id="territorialProfile" class="muted">Select or enter a territory to reconstruct its temporal feature vector.</div>
 <div id="territorialChange" style="margin-top:12px"></div>
+<div style="margin-top:10px"><button id="loadTerritoryTrajectory">Trajectory</button></div>
+<div id="territorialTrajectory" class="muted" style="margin-top:8px">Velocity, acceleration and baseline departure will appear here.</div>
 <h3 style="margin-top:18px">Spatial Statistics</h3>
 <div class="layerToggle"><button id="runGiStar">Gi* Hotspots</button><button id="runBivariateMoran">Bivariate Moran</button></div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px"><input id="spatialVarX" placeholder="Variable X / value"><input id="spatialVarY" placeholder="Variable Y"></div>
@@ -644,4 +646,14 @@ async function runBivariateUI(){
 }
 document.getElementById('runGiStar')?.addEventListener('click',runGiStarUI);
 document.getElementById('runBivariateMoran')?.addEventListener('click',runBivariateUI);
+</script>
+<script>
+async function loadTerritoryTrajectory(){
+ const id=document.getElementById('territoryProfileId')?.value?.trim(),box=document.getElementById('territorialTrajectory');if(!id||!box)return;
+ try{const r=await fetch('/v1/territorial/trajectory/'+encodeURIComponent(id));const d=await r.json();if(!r.ok)throw new Error(d.detail||'Trajectory unavailable');
+ const cp=(d.change_points||[]).length;
+ box.innerHTML='<b>Spatial Dynamics</b><br><span class="mapStat">Speed '+Number(d.current_speed).toFixed(4)+'</span> <span class="mapStat">Baseline departure '+Number(d.current_departure).toFixed(4)+'</span><br><br>Path '+Number(d.path_length).toFixed(4)+' · displacement '+Number(d.net_displacement).toFixed(4)+' · straightness '+Number(d.trajectory_straightness).toFixed(3)+' · change points '+cp+'<br><br><b>Speed history</b><pre style="white-space:pre-wrap">'+JSON.stringify(d.speed,null,2)+'</pre><b>Acceleration</b><pre style="white-space:pre-wrap">'+JSON.stringify(d.acceleration,null,2)+'</pre><span class="muted">Distances are standardized feature-space measurements, not probabilities. Change points are robust statistical signals, not causal conclusions.</span>';
+ }catch(e){box.textContent=e.message;}
+}
+document.getElementById('loadTerritoryTrajectory')?.addEventListener('click',loadTerritoryTrajectory);
 </script></body></html>
