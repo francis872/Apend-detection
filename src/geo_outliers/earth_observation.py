@@ -18,6 +18,7 @@ SENSORS={
         "collection":"sentinel-2-l2a",
         "bands":{"red":"red","green":"green","blue":"blue","nir":"nir","swir16":"swir16","swir22":"swir22"},
         "indices":{"NDVI":["nir","red"],"NDMI":["nir","swir16"],"NBR":["nir","swir22"],"NDWI":["green","nir"]},
+        "quality_asset":"scl",
     },
     "landsat-c2-l2":{
         "provider":"Microsoft Planetary Computer",
@@ -25,6 +26,7 @@ SENSORS={
         "collection":"landsat-c2-l2",
         "bands":{"red":"red","green":"green","blue":"blue","nir":"nir08","swir16":"swir16","swir22":"swir22","thermal":"lwir11"},
         "indices":{"NDVI":["nir","red"],"NDMI":["nir","swir16"],"NBR":["nir","swir22"],"NDWI":["green","nir"],"LST":["thermal"]},
+        "quality_asset":"qa_pixel",
     },
     "modis-09A1-061":{
         "provider":"Microsoft Planetary Computer",
@@ -66,6 +68,7 @@ def _normalize_item(item:dict,sensor_id:str)->dict:
     assets=item.get("assets") or {}
     cfg=SENSORS[sensor_id]
     wanted=set(cfg["bands"].values())
+    if cfg.get("quality_asset"): wanted.add(cfg["quality_asset"])
     selected={k:{"href":v.get("href"),"type":v.get("type"),"roles":v.get("roles")} for k,v in assets.items() if k in wanted}
     cloud=props.get("eo:cloud_cover")
     return {
