@@ -411,3 +411,21 @@ Endpoints:
 - `GET /v1/incidents`
 
 Las reglas son configuraciones operacionales explícitas. Una alerta indica que una condición definida fue satisfecha; no implica por sí misma causalidad, peligro real ni una predicción.
+
+
+## Meridian 2.6 - Incident Management & Territorial Intelligence Briefs
+
+El Operations Center incorpora una capa de gestion sobre los incidentes generados por Watchlists.
+
+Cada incidente puede mantener owner y prioridad, acknowledgement, estado de investigacion, notas, timeline auditable y resolucion. Los estados de investigacion soportados son new, acknowledged, investigating, monitoring, resolved y closed.
+
+Territorial Intelligence Brief genera un resumen estructurado y determinista a partir de evidencia ya calculada por Meridian: donde ocurre, cuando fue actualizado, que condicion cambio, por que fue marcado, evidencia territorial reciente y proximos puntos de revision. No inventa causas ni convierte correlacion en causalidad.
+
+Endpoints:
+- GET /v1/incidents/{incident_id}
+- PATCH /v1/incidents/{incident_id}
+- POST /v1/incidents/{incident_id}/notes
+- GET /v1/incidents/{incident_id}/brief
+- GET /v1/operations/cases
+
+El Operations Center permite abrir un incidente, reconocerlo, asignarlo, moverlo a investigacion, agregar notas, resolverlo y consultar su brief territorial.
