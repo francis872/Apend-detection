@@ -501,3 +501,20 @@ Endpoints:
 Arquitectura objetivo: STAC -> Raster Processing -> Cloud Mask -> Spectral Indices -> Zonal Feature Vector -> Robust Euclidean Intelligence -> Historical Baseline -> Change Detection -> Alert.
 
 La distancia euclidiana no sustituye Moran/LISA, probabilidad, Fisher-Rao, SPD ni analisis temporal. Funciona como una nueva señal geometrica dentro del ensemble y resulta especialmente interpretable para comparar estados territoriales multivariados.
+
+
+## Meridian 3.2 - Raster Processing Intelligence
+
+Meridian conecta Earth Observation con inteligencia computacional territorial. El nuevo Raster Processing Engine abre COGs remotos por ventana territorial, reproyecta/alinea las bandas requeridas, limita el numero de pixeles, aplica escalamiento por producto, utiliza mascaras de calidad cuando estan disponibles y calcula indices espectrales reales.
+
+Indices iniciales: NDVI, NDMI, NBR, NDWI y Landsat LST. Sentinel-2 usa SCL para excluir clases no validas/nube/sombra; Landsat usa QA_PIXEL. El motor produce estadisticas zonales count/mean/median/std/min/max/p05/p95 y un feature_vector territorial listo para Euclidean Computational Intelligence.
+
+Endpoints:
+- POST /v1/earth-observation/process
+- POST /v1/earth-observation/territorial/{object_key}/intelligence
+
+El endpoint territorial puede recibir un baseline previo. Cuando existen al menos dos indices compartidos, Meridian calcula automaticamente la distancia euclidiana del snapshot actual contra el baseline y devuelve deltas por variable. La distancia sigue siendo una medida geometrica, no una probabilidad ni evidencia causal.
+
+Pipeline 3.2: STAC -> COG territorial window -> product scaling -> cloud/QA mask -> NDVI/NDMI/NBR/NDWI/LST -> zonal statistics -> EO feature vector -> robust Euclidean baseline distance -> change evidence.
+
+Pendiente para el siguiente bloque: persistencia de EO snapshots por Territorial Object, baseline temporal automatico, change detection multiescena y conexion directa con Watchlists/Alerts.
