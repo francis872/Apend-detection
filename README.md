@@ -162,3 +162,16 @@ Los Domain Packs no alteran resultados para forzar una narrativa sectorial. Son 
 - Los endpoints existentes de analisis, jobs, fuentes reales e historial permanecen compatibles.
 
 Esta separacion permite usar Meridian como producto independiente o como motor analitico de plataformas como Backstage, sistemas agricolas, proteccion civil, infraestructura, energia y futuras capas de observacion terrestre.
+
+
+## Meridian 1.3 - Semantic Data Contracts
+
+Meridian ahora perfila cada fuente antes del motor analitico. `semantics.py` detecta roles estructurales, medidas numericas y equivalencias del Domain Pack, y produce un Data Contract explicable con columna original, significado canonico, rol, confianza, calidad e incidencias.
+
+El contrato no elimina ni renombra destructivamente los campos originales. Cuando existe una equivalencia suficientemente fuerte, Meridian agrega un alias canonico y conserva la trazabilidad hacia la columna fuente.
+
+Nuevo endpoint: `POST /v1/semantic/contract?domain_id=<domain>&columns=<csv>`.
+
+Pipeline 1.3:
+
+`Source -> Profiling -> Semantic Mapping -> Data Contract -> Domain Profile -> Meridian Core -> Intelligence Layer`.
