@@ -239,3 +239,22 @@ Una mala adecuacion de la distribucion no se oculta: el Orchestrator conserva el
 Cada decision registra `stage`, `status`, `action`, `reason`, `retryable` y `strategy`. El resultado final incluye un bloque `orchestration` para auditoria.
 
 Nuevo endpoint: `GET /v1/orchestrator/policy`.
+
+
+## Meridian 1.8 - Resilience, Recovery & Event Store
+
+Meridian incorpora una capa de resiliencia auditable alrededor del Orchestrator.
+
+- **Persistent Event Store:** SQLite separado en `runtime/meridian_events.sqlite3`, con eventos de inicio, decisiones, reintentos, recuperaciones, finalizacion y fallos.
+- **Bounded Retry:** operaciones transitorias pueden reintentarse con backoff exponencial y un numero maximo de intentos.
+- **Fallback Recovery:** el enriquecimiento externo puede degradarse a `context_only unavailable` sin invalidar el Meridian Core.
+- **Health Telemetry:** cada orquestacion expone decisiones, warnings, bloqueos, recuperaciones y ultima etapa.
+- **System Health:** combina estado de jobs, Event Store e integraciones externas.
+- **No infinite retries:** una operacion critica agotada se detiene y queda registrada para revision.
+
+Endpoints:
+- `GET /v1/events?job_id=<id>&limit=200`
+- `GET /v1/health/system`
+- `GET /health` incluye ahora telemetria resumida.
+
+El Event Store es append-only a nivel de la API de Meridian y sirve como historial operacional; no sustituye la persistencia de resultados cientificos.
