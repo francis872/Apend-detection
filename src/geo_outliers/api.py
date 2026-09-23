@@ -33,7 +33,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="1.4.0"
+VERSION="1.5.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -46,10 +46,10 @@ def _progress(job_id,percent,stage,message):
 def _safe_extract(zpath:Path,dest:Path):
     with zipfile.ZipFile(zpath) as z:
         names=z.namelist()
-        shp=[n for n in names if n.lower().endswith(".shp")]
-        if not shp: raise ValueError("ZIP has no .shp file")
+        supported=(".shp",".gpkg",".geojson",".json",".csv",".xlsx",".xls",".parquet")
+        if not any(n.lower().endswith(supported) for n in names): raise ValueError("ZIP has no supported Meridian data source")
         lower={n.lower() for n in names}
-        for s in shp:
+        for s in [n for n in names if n.lower().endswith(".shp")]:
             stem=s[:-4].lower()
             missing=[ext for ext in (".dbf",".shx") if stem+ext not in lower]
             if missing: raise ValueError(f"Incomplete Shapefile {s}: missing {', '.join(missing)}")
@@ -233,7 +233,7 @@ def configure_domain_endpoint(domain_id:str, columns:str="", probability_feature
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["autopilot","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["autopilot","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
@@ -277,14 +277,21 @@ def live_firms_analyze(
     return {"job_id":job_id,"status":"queued","rows":len(gdf),"source":source,"progress_url":f"/jobs/{job_id}/progress"}
 
 
+def _store_upload(data:bytes,filename:str,dest:Path,index:int):
+    name=Path(filename or f"source_{index}").name
+    ext=Path(name).suffix.lower()
+    if ext==".zip":
+        zp=dest/f"u{index}.zip";zp.write_bytes(data);folder=dest/f"s{index}";folder.mkdir();_safe_extract(zp,folder);return
+    if ext not in {".shp",".gpkg",".geojson",".json",".csv",".xlsx",".xls",".parquet"}:
+        raise ValueError(f"Unsupported format: {ext or 'unknown'}")
+    (dest/f"{index}_{name}").write_bytes(data)
+
 @app.post("/inspect")
 async def inspect(files:List[UploadFile]=File(...), domain:str=Form("auto")):
     job=RUNTIME/("_inspect_"+uuid.uuid4().hex); inputs=job/"input"; inputs.mkdir(parents=True)
     try:
         for i,f in enumerate(files):
-            if not (f.filename or "").lower().endswith(".zip"): raise HTTPException(400,"Only ZIP Shapefiles are accepted")
-            zp=job/f"u{i}.zip"; zp.write_bytes(await f.read())
-            dest=inputs/f"s{i}";dest.mkdir();_safe_extract(zp,dest)
+            _store_upload(await f.read(),f.filename or "",inputs,i)
         gdf=load_and_append(inputs)
         numeric=[c for c in gdf.columns if c!="geometry" and pd.to_numeric(gdf[c],errors="coerce").notna().sum()>=30]
         plan=build_autopilot_plan(gdf,domain)
@@ -308,10 +315,9 @@ async def analyze(files:List[UploadFile]=File(...), probability_feature:str=Form
     uploads=[]
     try:
         for i,f in enumerate(files):
-            if not (f.filename or "").lower().endswith(".zip"): raise HTTPException(400,"Only ZIP Shapefiles are accepted")
-            zp=job/f"upload_{i}.zip"
-            with zp.open("wb") as out: shutil.copyfileobj(f.file,out)
-            uploads.append(zp);dest=inputs/f"shape_{i}";dest.mkdir();_safe_extract(zp,dest)
+            data=await f.read()
+            original=job/f"upload_{i}_{Path(f.filename or 'source').name}";original.write_bytes(data);uploads.append(original)
+            _store_upload(data,f.filename or "",inputs,i)
     except Exception as e:
         shutil.rmtree(job,ignore_errors=True)
         raise HTTPException(422,str(e))
