@@ -29,6 +29,7 @@ from .automation import build_autopilot_plan
 from .enrichment import plan_auto_enrichment, execute_auto_enrichment
 from .orchestrator import MeridianOrchestrator
 from .event_store import append_event, list_events, event_stats
+from .governance import ensure_champion, get_champion, register_challenger, list_strategies, evaluate_strategy, promote, rollback
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
 from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms, fetch_firms_area, sample_weather_enrichment
@@ -36,7 +37,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="1.8.0"
+VERSION="1.9.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -137,6 +138,12 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         probability_feature=profile["probability_feature"]
         variables=profile["variables"]
         weights=profile["weights"]
+        champion=ensure_champion(domain,weights)
+        champion_weights=(champion.get("config") or {}).get("weights")
+        if champion_weights:
+            weights=champion_weights
+            profile["weights"]=weights
+        profile["algorithm_governance"]={"champion":champion}
         strategy=orchestrator.choose_analysis_strategy(len(gdf),variables,quadrature_order)
         quadrature_order=strategy["quadrature_order"]
         variables=strategy.get("variables",variables)
@@ -196,13 +203,15 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         outputs["report_html"]="REPORT.html"
 
         elapsed=time.perf_counter()-started
+        governance=evaluate_strategy(job_id,domain,summary,elapsed)
+        summary["algorithm_governance"]=governance
         payload={"job_id":job_id,"summary":{"cleaning":cleaning,"detector":summary},
           "outputs":{k:f"/jobs/{job_id}/files/{v}" for k,v in outputs.items()},
           "plot":plot,"map_points":_map_points(scored,max_points=5000),"anomalies":_table_rows(scored,limit=300),
           "numeric_variables":numeric,"comparison":comparison,"elapsed_seconds":elapsed,
           "analysis_status":{"numeric_detected":len(numeric),"variables_compared":len(comparison),
             "map_points":len(_map_points(scored,max_points=5000)),"anomaly_rows":len(_table_rows(scored,limit=300))},
-          "domain_profile":profile,"orchestration":summary.get("orchestration"),"intelligence_feed":_intelligence_feed(summary,domain)}
+          "domain_profile":profile,"orchestration":summary.get("orchestration"),"algorithm_governance":governance,"intelligence_feed":_intelligence_feed(summary,domain)}
         
         (results/"response.json").write_text(json.dumps(payload,ensure_ascii=False),encoding="utf-8")
         save_analysis(job_id,"complete",input_hash=input_hash,probability_feature=probability_feature,
@@ -273,13 +282,37 @@ def configure_domain_endpoint(domain_id:str, columns:str="", probability_feature
     try:return configure_domain(domain_id,numeric,probability_feature or None)
     except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
 
+@app.get("/v1/governance/strategies")
+def governance_strategies(domain:str=""):
+    return {"strategies":list_strategies(domain or None)}
+
+@app.get("/v1/governance/champion/{domain}")
+def governance_champion(domain:str):
+    return get_champion(domain) or ensure_champion(domain)
+
+@app.post("/v1/governance/challenger/{domain}")
+def governance_challenger(domain:str,name:str,version:str,weights_json:str=""):
+    try:weights=json.loads(weights_json) if weights_json else {}
+    except Exception:raise HTTPException(400,"weights_json must be valid JSON")
+    return register_challenger(domain,name,version,{"name":name,"version":version,"weights":weights})
+
+@app.post("/v1/governance/promote/{domain}/{strategy_id}")
+def governance_promote(domain:str,strategy_id:int):
+    try:return promote(domain,strategy_id)
+    except KeyError:raise HTTPException(404,"Strategy not found")
+
+@app.post("/v1/governance/rollback/{domain}")
+def governance_rollback(domain:str):
+    try:return rollback(domain)
+    except ValueError as e:raise HTTPException(409,str(e))
+
 @app.get("/v1/orchestrator/policy")
 def orchestrator_policy():
     return {"engine":"Meridian Orchestrator","version":VERSION,"principles":["deterministic decisions","hard quality gates","adaptive runtime strategy","external context is optional","no silent score mutation","no causal claims from correlation"],"large_dataset_threshold":150000,"balanced_threshold":60000,"max_multivariate_variables":8}
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
