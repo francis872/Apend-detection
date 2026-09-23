@@ -534,3 +534,22 @@ Endpoints:
 Scientific policy: corridor confidence is a composite support score, not probability. Statistical validation is reported separately. Meridian does not infer causality, political meaning or social conflict from a corridor. Interpretation remains an analyst task.
 
 Next integration surface: Spatial Join service endpoints, persistence/versioning of graphs and corridor results, and Territorial/Corridor Explorer map UI.
+
+
+## Meridian 4.5 - Advanced Spatial Statistics
+
+Meridian extends Territorial Intelligence with inferential spatial statistics while keeping association separate from causal interpretation.
+
+- **Getis-Ord Gi\***: local hotspot/coldspot statistic with k-nearest-neighbour spatial weights and permutation p-values. Local p-values are explicitly reported as unadjusted.
+- **Bivariate Moran's I**: measures association between variable X at each territorial unit and the spatial lag of variable Y in neighbouring units.
+- **Spatial Association Matrix**: pairwise bivariate Moran matrix for selected territorial variables, including coefficient and permutation p-value.
+- **Temporal Spatial Comparison**: compares Gi* structure between t0 and t1 and reports per-unit changes in z-score and hotspot/coldspot class.
+- **Territorial Explorer integration**: loaded analysis observations can run Gi* and Bivariate Moran directly from the workspace.
+
+Endpoints:
+- POST /v1/spatial/hotspots/gi-star
+- POST /v1/spatial/bivariate-moran
+- POST /v1/spatial/association-matrix
+- POST /v1/spatial/temporal-compare
+
+Scientific policy: significance is calculated through permutation tests where applicable. Spatial concentration, correlation and bivariate spatial association are evidence of pattern, not evidence of causality, conflict, intent or mechanism. For many simultaneous local tests, Meridian warns that multiple-testing correction should be considered.
