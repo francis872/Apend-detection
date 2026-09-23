@@ -64,6 +64,22 @@ def _hash_files(paths):
     return h.hexdigest()
 
 
+def _intelligence_feed(summary:dict):
+    items=[]
+    spatial=summary.get("spatial_validation",{})
+    temporal=summary.get("temporal_validation",{})
+    counts=summary.get("counts",{})
+    if counts.get("99",counts.get(99,0)):
+        items.append({"severity":"critical","type":"anomaly","title":"Critical anomalies detected","detail":f"{counts.get('99',counts.get(99,0))} observations reached the empirical 99% anomaly-score quantile."})
+    if spatial.get("hotspots",0):
+        items.append({"severity":"high","type":"spatial","title":"Spatial concentration detected","detail":f"{spatial['hotspots']} observations show high-high local spatial association."})
+    if spatial.get("clusters",0):
+        items.append({"severity":"elevated","type":"spatial","title":"Spatial clusters identified","detail":f"{spatial['clusters']} proximity clusters were identified by DBSCAN context analysis."})
+    if temporal.get("change_point_count",0):
+        items.append({"severity":"elevated","type":"temporal","title":"Temporal changes detected","detail":f"{temporal['change_point_count']} robust change-point candidates were detected."})
+    return items[:8]
+
+
 def _map_points(scored,max_points=5000):
     if scored.crs is None:return []
     geo=scored.to_crs(4326)
@@ -164,7 +180,8 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
           "plot":plot,"map_points":_map_points(scored,max_points=5000),"anomalies":_table_rows(scored,limit=300),
           "numeric_variables":numeric,"comparison":comparison,"elapsed_seconds":elapsed,
           "analysis_status":{"numeric_detected":len(numeric),"variables_compared":len(comparison),
-            "map_points":len(_map_points(scored,max_points=5000)),"anomaly_rows":len(_table_rows(scored,limit=300))}}
+            "map_points":len(_map_points(scored,max_points=5000)),"anomaly_rows":len(_table_rows(scored,limit=300))},
+          "intelligence_feed":_intelligence_feed(summary)}
         
         (results/"response.json").write_text(json.dumps(payload,ensure_ascii=False),encoding="utf-8")
         save_analysis(job_id,"complete",input_hash=input_hash,probability_feature=probability_feature,
