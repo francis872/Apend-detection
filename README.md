@@ -1,6 +1,8 @@
-# Detector geoespacial de outliers
+# Meridian
 
-Proyecto cooperativo para cargar, concatenar (`append`), depurar y analizar capas Shapefile con un pipeline estadistico-geoespacial.
+**Geospatial Intelligence Engine**
+
+Meridian es un motor de inteligencia estadistica y geoespacial para integrar datos, detectar patrones anomalos, explorar su contexto territorial y explicar los resultados mediante multiples metodos matematicos.
 
 ## Flujo implementado
 
@@ -66,7 +68,7 @@ GeoPackage y Shapefiles binarios no se versionan. Los resultados tabulares repro
 
 ## Version 0.2 - pipeline completo
 
-Apend Detection ahora integra las diez capas de trabajo:
+Meridian ahora integra las diez capas de trabajo:
 
 1. Ejecucion reproducible del pipeline con Gauss-Legendre.
 2. API FastAPI: upload de uno o varios ZIP Shapefile y analisis desde la interfaz.
@@ -99,7 +101,7 @@ geo-outliers data/raw --output results --probability-feature FRP --quadrature-or
 ```
 
 
-## Apend Detection 1.0 - Final
+## Meridian 1.0 - Final
 
 La version 1.0 cierra el proyecto con un pipeline reproducible de analisis estadistico-geoespacial. Ademas de la integral numerica, el sistema calcula la primera y segunda derivada de la PDF ajustada. Los puntos de inflexion se aceptan cuando `f''(x)` cambia de signo; el valor cero aislado no basta.
 
@@ -118,7 +120,7 @@ La interfaz ejecuta el analisis, representa histograma + PDF + `f'(x)` + `f''(x)
 `Append -> Cleaning -> Probability Fit -> Gaussian Quadrature -> Derivatives/Inflection -> Mahalanobis -> SPD -> Procrustes -> Spatial -> Temporal -> Explainable Consensus -> 90/95/99 -> Noise validation -> Export/Report`
 
 
-## Apend Detection 1.1
+## Meridian 1.1
 
 La interfaz localhost incorpora mapa Leaflet, inspeccion previa de Shapefiles, selector de variable, comparacion multivariable, graficos separados de PDF/f'/f'', areas centrales, tabla explicable de anomalias, pesos configurables, jobs con progreso, historial SQLite, bootstrap de estabilidad, ablation sensitivity, validacion de ZIP/CRS/tamano, reporte HTML y metadata reproducible con SHA-256.
 
