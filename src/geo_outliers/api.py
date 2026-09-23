@@ -36,8 +36,9 @@ from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms
 from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
+from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer
 
-VERSION="2.1.0"
+VERSION="2.2.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -242,6 +243,41 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
 def health():
     return {"status":"ok","service":"Meridian","version":VERSION,"event_store":event_stats(),"active_jobs":sum(1 for x in PROGRESS.values() if x.get("percent",100)<100)}
 
+
+@app.post("/v1/territorial/query/{job_id}")
+def territorial_query(job_id:str,geometry:dict):
+    try:
+        gdf=load_analysis_layer(RUNTIME/job_id)
+        selected=select_polygon(gdf,geometry)
+        return {"job_id":job_id,"summary":summarize_region(selected),"selected_ids":[int(x) for x in selected.index[:5000]],"selection_truncated":len(selected)>5000}
+    except FileNotFoundError as e:raise HTTPException(404,str(e))
+    except ValueError as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/territorial/compare/{job_id}")
+def territorial_compare(job_id:str,payload:dict):
+    if "region_a" not in payload or "region_b" not in payload:raise HTTPException(400,"region_a and region_b are required")
+    try:
+        gdf=load_analysis_layer(RUNTIME/job_id)
+        a=select_polygon(gdf,payload["region_a"]); b=select_polygon(gdf,payload["region_b"])
+        return {"job_id":job_id,**compare_regions(a,b)}
+    except FileNotFoundError as e:raise HTTPException(404,str(e))
+    except ValueError as e:raise HTTPException(400,str(e))
+
+@app.get("/v1/territorial/layers")
+def territorial_layers(limit:int=100):
+    return {"layers":list_layers(limit)}
+
+@app.post("/v1/territorial/layers")
+def territorial_save_layer(payload:dict):
+    if not payload.get("name") or not payload.get("geometry"):raise HTTPException(400,"name and geometry are required")
+    try:return save_layer(payload["name"],payload["geometry"],payload.get("job_id"),payload.get("metadata"))
+    except ValueError as e:raise HTTPException(400,str(e))
+
+@app.delete("/v1/territorial/layers/{layer_id}")
+def territorial_delete_layer(layer_id:int):
+    if not delete_layer(layer_id):raise HTTPException(404,"Layer not found")
+    return {"deleted":True,"id":layer_id}
+
 @app.get("/v1/events")
 def events(job_id:str="",limit:int=200):
     return {"events":list_events(job_id or None,limit)}
@@ -342,7 +378,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
