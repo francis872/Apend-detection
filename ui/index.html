@@ -213,6 +213,13 @@ async function inspectSelected(){
     $('stage').textContent='inspected';$('bar').style.width='100%';$('pct').textContent='100%';
     $('status').textContent='Source validated · '+j.rows+' records · CRS '+(j.crs||'unknown')+' · '+j.numeric_variables.length+' numeric variables.';
     $('variableCount').textContent=j.numeric_variables.length+' variables';
+    if(j.autopilot){
+      const ap=j.autopilot, inf=ap.domain_inference||{};
+      $('domainHint').textContent='AUTOPILOT · '+ap.domain_pack.name+' · confidence '+Math.round((inf.confidence||0)*100)+'% · '+(ap.ready?'ready':'review required');
+      if($('domain').value==='auto') addActivity('Autopilot configured analysis',ap.domain_pack.name+' · '+ap.variables.join(', '));
+      if(ap.probability_feature&&j.numeric_variables.includes(ap.probability_feature)) $('variable').value=ap.probability_feature;
+      [...$('compareVars').options].forEach(o=>o.selected=ap.variables.includes(o.value));
+    }
     if(j.data_contract){
       const dc=j.data_contract;
       $('contractPanel').innerHTML='<b>Semantic Data Contract</b><p class="k">'+(dc.ready?'Ready for analysis':'Review required')+' · '+dc.mappings.length+' mappings · '+dc.measures.length+' numeric measures</p>'+
@@ -256,7 +263,7 @@ async function startAnalysis(){
   $('run').disabled=true;$('stage').textContent='upload';$('status').textContent='Subiendo dataset para análisis…';
   let fd=formFiles();
   fd.append('probability_feature',$('variable').value);
-  fd.append('domain',$('domain')?.value||'general');
+  fd.append('domain',$('domain')?.value||'auto');
   fd.append('variables',[...$('compareVars').selectedOptions].map(o=>o.value).join(','));
   fd.append('noise_level','99');fd.append('quadrature_order','48');
   if($('mode').value==='advanced'){let w={};document.querySelectorAll('[data-weight]').forEach(i=>w[i.dataset.weight]=+i.value);fd.append('weights_json',JSON.stringify(w))}
@@ -273,6 +280,7 @@ async function startAnalysis(){
 $('run').onclick=startAnalysis;
 $('domain')?.addEventListener('change',async()=>{
   const id=$('domain').value;
+  if(id==='auto'){$('domainHint').textContent='Autopilot will infer the domain, semantic contract, variables and analysis profile from the source.';addActivity('Autopilot enabled','Automatic analysis configuration');return}
   try{const r=await fetch('/v1/domains/'+id);if(!r.ok)return;const d=await r.json();$('domainHint').textContent=d.description+' · Sources: '+d.sources.join(', ')+' · Governance: '+d.governance;addActivity('Domain Pack selected',d.name)}catch{}
 });
 
