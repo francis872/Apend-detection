@@ -101,6 +101,89 @@ TERRITORIAL_MIGRATIONS=[
     CREATE INDEX IF NOT EXISTS idx_incident_timeline_incident ON incident_timeline(incident_id,id);
     CREATE INDEX IF NOT EXISTS idx_alert_incidents_status ON alert_incidents(status,updated_at);
     """),
+    (4,"territorial_network_socio_ecological","""
+    CREATE TABLE IF NOT EXISTS geodata_datasets(
+      dataset_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      source TEXT,
+      source_url TEXT,
+      license TEXT,
+      description TEXT,
+      geometry_type TEXT,
+      crs TEXT,
+      temporal_start TEXT,
+      temporal_end TEXT,
+      resolution TEXT,
+      update_frequency TEXT,
+      created_at TEXT NOT NULL,
+      metadata_json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS data_lineage(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dataset_id TEXT,
+      stage TEXT NOT NULL,
+      transformation TEXT,
+      algorithm_version TEXT,
+      parent_dataset_id TEXT,
+      job_id TEXT,
+      created_at TEXT NOT NULL,
+      metadata_json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS spatial_events(
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      latitude REAL,
+      longitude REAL,
+      geometry_json TEXT NOT NULL,
+      date TEXT,
+      source TEXT,
+      source_id TEXT,
+      confidence REAL,
+      administrative_unit TEXT,
+      metadata_json TEXT NOT NULL,
+      dataset_id TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS territorial_snapshots(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      territory_id TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      social_json TEXT NOT NULL,
+      economic_json TEXT NOT NULL,
+      ecological_json TEXT NOT NULL,
+      satellite_json TEXT NOT NULL,
+      land_use_json TEXT NOT NULL,
+      provenance_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_snapshot_territory_time ON territorial_snapshots(territory_id,timestamp);
+    CREATE TABLE IF NOT EXISTS land_use_snapshots(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      territory_id TEXT NOT NULL,
+      observed_use TEXT,
+      planned_use TEXT,
+      historical_use TEXT,
+      satellite_classification TEXT,
+      timestamp TEXT NOT NULL,
+      sources_json TEXT NOT NULL,
+      divergence_level TEXT,
+      divergence_score REAL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS corridor_results(
+      corridor_id TEXT PRIMARY KEY,
+      geometry_json TEXT NOT NULL,
+      variables_json TEXT NOT NULL,
+      period_json TEXT NOT NULL,
+      supporting_events_json TEXT NOT NULL,
+      confidence REAL NOT NULL,
+      method TEXT NOT NULL,
+      data_sources_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_lineage_dataset ON data_lineage(dataset_id,id);
+    CREATE INDEX IF NOT EXISTS idx_spatial_events_date ON spatial_events(date);
+    """),
 ]
 
 
