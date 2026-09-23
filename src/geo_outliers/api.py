@@ -38,9 +38,10 @@ from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 from .incidents import get_incident_case, update_incident_management, add_incident_note, build_intelligence_brief, operations_cases
 from .migrations import migrate_all, migration_status
+from .data_quality import assess_data_quality, quality_gate
 from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts, monitor_object, monitor_all_objects, monitoring_history, territorial_monitoring_dashboard, create_watchlist, list_watchlists, subscribe_object, create_alert_rule, list_alert_rules, process_watchlist_alerts, list_incidents, operations_center
 
-VERSION="2.8.0"
+VERSION="2.9.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 MIGRATION_RESULT=migrate_all()
@@ -136,6 +137,10 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         _progress(job_id,10,"orchestrating","Orchestrator is validating the source")
         gdf=source_gdf.copy() if source_gdf is not None else load_and_append(inputs)
         if not orchestrator.gate_source(gdf)["ok"]: raise ValueError(orchestrator.finalize()["decisions"][-1]["reason"])
+        quality=assess_data_quality(gdf)
+        qgate=quality_gate(quality)
+        orchestrator.record("data_quality",qgate["status"],"continue" if qgate["ok"] else "block",qgate["reason"])
+        if not qgate["ok"]: raise ValueError(qgate["reason"])
         autopilot=build_autopilot_plan(gdf,domain)
         if not orchestrator.gate_autopilot(autopilot)["ok"]: raise ValueError(orchestrator.finalize()["decisions"][-1]["reason"])
         if domain in ("","auto",None): domain=autopilot["selected_domain"]
@@ -146,6 +151,7 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         numeric=[c for c in gdf.columns if c!="geometry" and pd.to_numeric(gdf[c],errors="coerce").notna().sum()>=30]
         profile=configure_domain(domain,numeric,probability_feature,variables,weights)
         profile["data_contract"]=contract
+        profile["data_quality"]=quality
         profile["semantic_aliases"]=semantic_aliases
         profile["autopilot"]=autopilot
         enrichment_plan=plan_auto_enrichment(gdf,domain,contract)
@@ -257,6 +263,18 @@ def health():
 
 
 
+
+
+@app.post("/v1/data-quality")
+async def data_quality(files:List[UploadFile]=File(...)):
+    job_dir=RUNTIME/("_quality_"+uuid.uuid4().hex[:10]); job_dir.mkdir(parents=True,exist_ok=True)
+    try:
+        paths=_store_uploads(files,job_dir)
+        gdf=load_and_append(paths)
+        report=assess_data_quality(gdf)
+        return {"report":report,"gate":quality_gate(report)}
+    except ValueError as e:raise HTTPException(422,str(e))
+    finally:shutil.rmtree(job_dir,ignore_errors=True)
 
 @app.get("/v1/system/migrations")
 def system_migrations():
@@ -528,7 +546,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["permutation_lisa","significant_hotspots","spatial_density","spatial_outliers","incident_management","territorial_intelligence_briefs","incident_ownership","acknowledgement","investigation_timeline","operations_center","territorial_watchlists","alert_rules","alert_deduplication","alert_escalation","alert_resolution","territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["data_quality_engine","geometry_quality","coordinate_validation","quality_gate","permutation_lisa","significant_hotspots","spatial_density","spatial_outliers","incident_management","territorial_intelligence_briefs","incident_ownership","acknowledgement","investigation_timeline","operations_center","territorial_watchlists","alert_rules","alert_deduplication","alert_escalation","alert_resolution","territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
