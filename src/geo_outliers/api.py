@@ -28,6 +28,7 @@ from .semantics import semantic_contract, apply_contract
 from .automation import build_autopilot_plan
 from .enrichment import plan_auto_enrichment, execute_auto_enrichment
 from .orchestrator import MeridianOrchestrator
+from .event_store import append_event, list_events, event_stats
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
 from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms, fetch_firms_area, sample_weather_enrichment
@@ -35,7 +36,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="1.7.0"
+VERSION="1.8.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -184,7 +185,7 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
           "random_state":42,"source":source_meta or {"type":"uploaded_shapefile"}}
         summary["reproducibility"]=reproducibility
         _progress(job_id,84,"enrichment","Autopilot is evaluating and retrieving relevant external context")
-        enrichment=execute_auto_enrichment(scored,enrichment_plan,max_weather_points=8)
+        enrichment=orchestrator.run_with_retry("enrichment",lambda:execute_auto_enrichment(scored,enrichment_plan,max_weather_points=8),max_attempts=2,fallback=lambda err:{"policy":"context_only","score_mutation":False,"causal_claims":False,"results":[],"status":"degraded","error":str(err),"provenance_note":"External context unavailable after retry; core analysis preserved."})
         summary["external_context"]={"auto_enrichment":enrichment}
         orchestrator.evaluate_enrichment(enrichment)
         summary["orchestration"]=orchestrator.finalize()
@@ -206,15 +207,30 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         (results/"response.json").write_text(json.dumps(payload,ensure_ascii=False),encoding="utf-8")
         save_analysis(job_id,"complete",input_hash=input_hash,probability_feature=probability_feature,
           rows=len(scored),crs=str(gdf.crs),params=params,summary=summary,outputs=outputs,elapsed_seconds=elapsed)
+        append_event(job_id,"analysis_completed",stage="runtime",payload={"elapsed_seconds":elapsed,"rows":len(scored),"domain":domain})
         _progress(job_id,100,"complete",f"Analysis completed in {elapsed:.1f}s")
     except Exception as e:
         orchestrator.record("runtime","blocked","stop",str(e),False,"manual_review")
+        append_event(job_id,"analysis_failed",stage="runtime",severity="error",payload={"error":str(e)})
         save_analysis(job_id,"failed",input_hash=input_hash,probability_feature=probability_feature,params=params,error=str(e))
         _progress(job_id,100,"failed",str(e))
 
 
 @app.get("/health")
-def health(): return {"status":"ok","service":"Meridian","version":VERSION}
+def health():
+    return {"status":"ok","service":"Meridian","version":VERSION,"event_store":event_stats(),"active_jobs":sum(1 for x in PROGRESS.values() if x.get("percent",100)<100)}
+
+@app.get("/v1/events")
+def events(job_id:str="",limit:int=200):
+    return {"events":list_events(job_id or None,limit)}
+
+@app.get("/v1/health/system")
+def system_health():
+    history=list_analyses(100)
+    running=sum(1 for x in history if x.get("status")=="running")
+    failed=sum(1 for x in history if x.get("status")=="failed")
+    complete=sum(1 for x in history if x.get("status")=="complete")
+    return {"service":"Meridian","version":VERSION,"jobs":{"running":running,"failed":failed,"complete":complete},"events":event_stats(),"integrations":integration_status()}
 
 @app.get("/v1/domains")
 def domains(): return {"engine":"Meridian","version":VERSION,"domains":list_domain_packs()}
@@ -263,7 +279,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
