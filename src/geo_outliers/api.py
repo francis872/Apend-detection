@@ -45,9 +45,10 @@ from .raster_processing import process_scene
 from .socio_ecological import register_dataset, list_datasets, lineage, create_event, territorial_snapshot, snapshots, territorial_indicators, correlation, distance_model, hotspot, detect_corridors
 from .network_corridor import build_territorial_graph, shortest_path, detect_network_corridors
 from .spatial_operations import spatial_operation
+from .corridor_store import save_corridors, list_corridors, get_corridor
 from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts, monitor_object, monitor_all_objects, monitoring_history, territorial_monitoring_dashboard, create_watchlist, list_watchlists, subscribe_object, create_alert_rule, list_alert_rules, process_watchlist_alerts, list_incidents, operations_center
 
-VERSION="4.2.0"
+VERSION="4.3.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 MIGRATION_RESULT=migrate_all()
@@ -351,13 +352,27 @@ def territorial_corridors_api(payload:dict):
         if "distance_threshold" in payload and "proximity_m" not in payload:
             return {"corridors":detect_corridors(payload["points"],float(payload["distance_threshold"]),payload.get("period"),payload.get("data_sources")),
                     "methodology":{"legacy":True,"causal_claims":False}}
-        return detect_network_corridors(
+        result=detect_network_corridors(
             payload.get("nodes") or payload["points"],payload.get("edges"),
             float(payload.get("proximity_m",5000)),payload.get("bandwidth_m"),int(payload.get("min_nodes",3)),
             float(payload.get("temporal_weight",.15)),float(payload.get("density_weight",.30)),
             float(payload.get("connectivity_weight",.35)),float(payload.get("continuity_weight",.20)),
             int(payload.get("permutations",99)))
+        if payload.get("persist",True):
+            result["persisted"]=save_corridors(result,payload.get("period"),payload.get("data_sources"))
+        return result
     except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+
+@app.get("/v1/territorial/corridors")
+def territorial_corridor_list(limit:int=100):
+    return {"corridors":list_corridors(limit)}
+
+@app.get("/v1/territorial/corridors/{corridor_id}")
+def territorial_corridor_detail(corridor_id:str):
+    item=get_corridor(corridor_id)
+    if not item:raise HTTPException(404,"Corridor not found")
+    return item
 
 @app.post("/v1/earth-observation/process")
 def earth_observation_process(payload:dict):
