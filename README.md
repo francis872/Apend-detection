@@ -280,3 +280,23 @@ Endpoints:
 - `POST /v1/governance/rollback/{domain}`
 
 La promocion automatica queda deliberadamente pendiente hasta disponer de evaluaciones repetidas y criterios estadisticos de no degradacion.
+
+
+## Meridian 2.0 - Governance Intelligence
+
+Meridian cierra el primer ciclo de gobierno algoritmico con historial experimental, monitoreo de drift y promotion gates.
+
+- **Experiment History:** cada evaluacion Champion/Challenger queda consultable por dominio y job.
+- **Drift Monitoring:** cada corrida genera una firma operacional con tasas de anomalias 95/99, ruido, consenso, hotspots, change points y KS. Se compara contra una ventana historica reciente mediante desviacion robusta.
+- **Baseline building:** Meridian exige historial antes de declarar drift; las primeras corridas construyen la referencia.
+- **Promotion Gate:** un Challenger necesita evaluaciones repetidas antes de quedar elegible. El valor por defecto es cinco corridas.
+- **No auto-promotion yet:** elegible no significa promovido. La promocion continua siendo explicita para evitar decisiones algoritmicas basadas en evidencia insuficiente.
+- **Audit trail:** drift y decisiones de gobernanza tambien se escriben en Event Store.
+
+Endpoints:
+- `GET /v1/governance/dashboard/{domain}`
+- `GET /v1/governance/experiments?domain=<domain>`
+- `GET /v1/governance/drift/{domain}`
+- `GET /v1/governance/promotion-gate/{domain}?min_runs=5`
+
+Meridian 2.0 separa claramente deteccion de drift, elegibilidad para promocion y accion de promocion/rollback.
