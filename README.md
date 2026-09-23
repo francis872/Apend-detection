@@ -334,3 +334,30 @@ Endpoints:
 - `DELETE /v1/territorial/layers/{layer_id}`
 
 La siguiente evolucion natural es convertir capas guardadas en objetos territoriales versionados, añadir consultas por buffers/corredores y generar findings/alerts especificamente dentro de cada territorio.
+
+
+## Meridian 2.3 - Territorial Objects
+
+Las geometrías dejan de ser selecciones temporales y pasan a representar entidades territoriales versionadas.
+
+Un Territorial Object puede representar un barrio, finca, municipio, zona de riesgo, activo u otra unidad operacional. Cada actualización conserva `object_key` y crea una nueva `version`, dejando la anterior como `superseded`.
+
+Capacidades:
+- objetos territoriales versionados con metadata y tipo;
+- buffers métricos calculados en un CRS local proyectado;
+- corredores construidos desde líneas + distancia;
+- intersección entre geometrías;
+- evaluación de un objeto contra cualquier `analysis.gpkg` disponible;
+- findings específicos del territorio para concentración crítica y señales espacial/temporal elevadas;
+- historial persistente de alertas territoriales.
+
+Endpoints:
+- `GET/POST /v1/territorial/objects`
+- `GET /v1/territorial/objects/{object_key}/versions`
+- `POST /v1/territorial/objects/{object_key}/evaluate/{job_id}`
+- `POST /v1/territorial/geometry/buffer`
+- `POST /v1/territorial/geometry/corridor`
+- `POST /v1/territorial/geometry/intersection`
+- `GET /v1/territorial/alerts`
+
+Los findings son reglas descriptivas sobre evidencia calculada; no convierten asociación espacial o temporal en causalidad.
