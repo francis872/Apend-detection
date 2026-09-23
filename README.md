@@ -258,3 +258,25 @@ Endpoints:
 - `GET /health` incluye ahora telemetria resumida.
 
 El Event Store es append-only a nivel de la API de Meridian y sirve como historial operacional; no sustituye la persistencia de resultados cientificos.
+
+
+## Meridian 1.9 - Algorithm Governance
+
+Meridian incorpora un registro persistente de estrategias por dominio.
+
+- Cada dominio obtiene un **Champion** activo.
+- Se pueden registrar **Challengers** con nombre, version, configuracion y pesos.
+- Cada corrida genera una evaluacion de gobernanza ligada al job y al Event Store.
+- La primera politica es conservadora: un Challenger se observa, pero **no se promociona automaticamente por una sola corrida**.
+- La promocion es explicita y conserva al Champion anterior como estrategia retirada.
+- Rollback restaura la estrategia retirada mas reciente y deja la estrategia sustituida como Challenger.
+- El pipeline usa los pesos del Champion registrado, manteniendo trazabilidad de la estrategia que produjo el resultado.
+
+Endpoints:
+- `GET /v1/governance/strategies?domain=<domain>`
+- `GET /v1/governance/champion/{domain}`
+- `POST /v1/governance/challenger/{domain}`
+- `POST /v1/governance/promote/{domain}/{strategy_id}`
+- `POST /v1/governance/rollback/{domain}`
+
+La promocion automatica queda deliberadamente pendiente hasta disponer de evaluaciones repetidas y criterios estadisticos de no degradacion.
