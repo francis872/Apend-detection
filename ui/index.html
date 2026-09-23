@@ -131,8 +131,9 @@ h1{margin:4px 0;font-size:28px;font-weight:500;letter-spacing:-.02em}.eyebrow{co
 <div style="display:flex;gap:6px;margin-bottom:8px"><input id="territoryProfileId" placeholder="Territory ID" style="min-width:0"><button id="loadTerritoryProfile">Load</button></div>
 <div id="territorialProfile" class="muted">Select or enter a territory to reconstruct its temporal feature vector.</div>
 <div id="territorialChange" style="margin-top:12px"></div>
-<div style="margin-top:10px"><button id="loadTerritoryTrajectory">Trajectory</button></div>
+<div style="margin-top:10px;display:flex;gap:7px"><button id="loadTerritoryTrajectory">Trajectory</button><button id="runTrajectoryWatch">Assess dynamics</button></div>
 <div id="territorialTrajectory" class="muted" style="margin-top:8px">Velocity, acceleration and baseline departure will appear here.</div>
+<div id="trajectoryWatchEvidence" class="muted" style="margin-top:8px"></div>
 <h3 style="margin-top:18px">Spatial Statistics</h3>
 <div class="layerToggle"><button id="runGiStar">Gi* Hotspots</button><button id="runBivariateMoran">Bivariate Moran</button></div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px"><input id="spatialVarX" placeholder="Variable X / value"><input id="spatialVarY" placeholder="Variable Y"></div>
@@ -656,4 +657,13 @@ async function loadTerritoryTrajectory(){
  }catch(e){box.textContent=e.message;}
 }
 document.getElementById('loadTerritoryTrajectory')?.addEventListener('click',loadTerritoryTrajectory);
+</script>
+<script>
+async function runTrajectoryWatchUI(){
+ const id=document.getElementById('territoryProfileId')?.value?.trim(),box=document.getElementById('trajectoryWatchEvidence');if(!id||!box)return;
+ try{const r=await fetch('/v1/territorial/trajectory/watch/'+encodeURIComponent(id),{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Assessment unavailable');
+ const s=d.signals||{};box.innerHTML='<b>Trajectory Assessment</b><br><span class="mapStat">'+d.status+'</span> <span class="mapStat">Departure z '+Number(s.departure?.z||0).toFixed(2)+'</span> <span class="mapStat">Speed z '+Number(s.speed?.z||0).toFixed(2)+'</span><br><br>Evidence: '+((d.evidence||[]).join(', ')||'no unusual dynamic signal')+'<br><span class="muted">This is an evidence signal relative to observed history. It is not a forecast, risk probability, causal conclusion or automatic conflict classification.</span>';
+ }catch(e){box.textContent=e.message;}
+}
+document.getElementById('runTrajectoryWatch')?.addEventListener('click',runTrajectoryWatchUI);
 </script></body></html>
