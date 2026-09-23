@@ -26,6 +26,7 @@ from .domains import get_domain_pack, list_domain_packs, configure_domain
 from .intelligence import build_intelligence
 from .semantics import semantic_contract, apply_contract
 from .automation import build_autopilot_plan
+from .enrichment import plan_auto_enrichment, execute_auto_enrichment
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
 from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms, fetch_firms_area, sample_weather_enrichment
@@ -33,7 +34,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="1.5.0"
+VERSION="1.6.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -128,6 +129,8 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         profile["data_contract"]=contract
         profile["semantic_aliases"]=semantic_aliases
         profile["autopilot"]=autopilot
+        enrichment_plan=plan_auto_enrichment(gdf,domain,contract)
+        profile["enrichment_plan"]=enrichment_plan
         probability_feature=profile["probability_feature"]
         variables=profile["variables"]
         weights=profile["weights"]
@@ -172,8 +175,9 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
           "input_sha256":input_hash,"parameters":params,"crs":str(gdf.crs),"rows_input":int(len(gdf)),
           "random_state":42,"source":source_meta or {"type":"uploaded_shapefile"}}
         summary["reproducibility"]=reproducibility
-        _progress(job_id,84,"enrichment","Fetching bounded real weather context from Open-Meteo")
-        summary["external_context"]={"weather":sample_weather_enrichment(scored,max_points=8)}
+        _progress(job_id,84,"enrichment","Autopilot is evaluating and retrieving relevant external context")
+        enrichment=execute_auto_enrichment(scored,enrichment_plan,max_weather_points=8)
+        summary["external_context"]={"auto_enrichment":enrichment}
 
         _progress(job_id,88,"exporting","Exporting GeoPackage, CSV, JSON and reports")
         outputs=export_analysis(scored,fits,cleaning,summary,results,noise_level=noise_level)
@@ -209,6 +213,17 @@ def domain(domain_id:str):
     try:return get_domain_pack(domain_id)
     except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
 
+@app.post("/v1/enrichment/plan")
+def enrichment_plan(domain:str="general", columns:str=""):
+    cols=[x.strip() for x in columns.split(",") if x.strip()]
+    preview=pd.DataFrame({x:pd.Series([1.0]*30) for x in cols})
+    if "latitude" not in preview: preview["latitude"]=pd.Series([0.0]*30)
+    if "longitude" not in preview: preview["longitude"]=pd.Series([0.0]*30)
+    import geopandas as gpd
+    gdf=gpd.GeoDataFrame(preview,geometry=gpd.points_from_xy(preview["longitude"],preview["latitude"]),crs="EPSG:4326")
+    try:return plan_auto_enrichment(gdf,domain)
+    except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
+
 @app.post("/v1/autopilot/plan")
 def autopilot_plan(domain:str="auto", columns:str=""):
     cols=[x.strip() for x in columns.split(",") if x.strip()]
@@ -233,7 +248,7 @@ def configure_domain_endpoint(domain_id:str, columns:str="", probability_feature
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["autopilot","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
