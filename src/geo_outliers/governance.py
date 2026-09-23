@@ -27,6 +27,9 @@ def _connect():
       id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL, domain TEXT NOT NULL,
       champion_json TEXT NOT NULL, challenger_json TEXT, metrics_json TEXT NOT NULL,
       decision TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS drift_snapshots(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL, domain TEXT NOT NULL,
+      signature_json TEXT NOT NULL, drift_json TEXT NOT NULL, created_at TEXT NOT NULL)""")
     return con
 
 
@@ -109,3 +112,83 @@ def rollback(domain:str)->dict:
         con.execute("UPDATE strategies SET status='champion' WHERE id=?",(previous["id"],))
     append_event(None,"strategy_rollback",category="governance",stage="governance",severity="warning",payload={"domain":domain,"restored_strategy_id":previous["id"]})
     return get_champion(domain)
+
+
+def experiment_history(domain:str|None=None,limit:int=100)->list[dict]:
+    limit=min(max(int(limit),1),500)
+    with _connect() as con:
+        rows=con.execute("SELECT * FROM evaluations WHERE domain=? ORDER BY id DESC LIMIT ?",(domain,limit)).fetchall() if domain else con.execute("SELECT * FROM evaluations ORDER BY id DESC LIMIT ?",(limit,)).fetchall()
+    out=[]
+    for r in rows:
+        d=dict(r)
+        for key in ("champion_json","challenger_json","metrics_json"):
+            raw=d.pop(key)
+            d[key.replace("_json","")]=json.loads(raw) if raw else None
+        out.append(d)
+    return out
+
+
+def _signature(summary:dict)->dict:
+    rows=max(int(summary.get("rows") or 0),1)
+    counts=summary.get("counts") or {}
+    spatial=summary.get("spatial_validation") or {}
+    temporal=summary.get("temporal_validation") or {}
+    return {
+        "critical_rate":float(counts.get("99",0))/rows,
+        "high_rate":float(counts.get("95",0))/rows,
+        "noise_rate":float(summary.get("noise_candidates",0))/rows,
+        "consensus_rate":float(summary.get("strong_consensus_count",0))/rows,
+        "hotspots":float(spatial.get("hotspots",0)),
+        "change_points":float(temporal.get("change_point_count",0)),
+        "ks_stat":float((summary.get("best_distribution_metrics") or {}).get("ks_stat") or 0),
+    }
+
+
+def monitor_drift(job_id:str,domain:str,summary:dict,window:int=10)->dict:
+    current=_signature(summary)
+    with _connect() as con:
+        rows=con.execute("SELECT signature_json FROM drift_snapshots WHERE domain=? ORDER BY id DESC LIMIT ?",(domain,window)).fetchall()
+    previous=[json.loads(r["signature_json"]) for r in rows]
+    if len(previous)<3:
+        result={"status":"baseline_building","history":len(previous),"score":0.0,"signals":[],"current":current}
+    else:
+        signals=[]; scores=[]
+        for key,value in current.items():
+            hist=[float(x.get(key,0)) for x in previous]
+            mean=sum(hist)/len(hist)
+            mad=sum(abs(x-mean) for x in hist)/len(hist)
+            scale=max(mad,abs(mean)*.10,1e-6)
+            z=abs(value-mean)/scale
+            scores.append(min(z/5.0,1.0))
+            if z>=3.5:signals.append({"metric":key,"current":value,"baseline":mean,"robust_deviation":z})
+        score=sum(scores)/len(scores) if scores else 0.0
+        result={"status":"drift_detected" if signals else "stable","history":len(previous),"score":round(score,4),"signals":signals,"current":current}
+    now=datetime.now(timezone.utc).isoformat()
+    with _connect() as con:
+        con.execute("INSERT INTO drift_snapshots(job_id,domain,signature_json,drift_json,created_at) VALUES(?,?,?,?,?)",
+                    (job_id,domain,json.dumps(current),json.dumps(result),now))
+    append_event(job_id,"drift_evaluation",category="governance",stage="drift",severity="warning" if result["status"]=="drift_detected" else "info",payload=result)
+    return result
+
+
+def promotion_gate(domain:str,min_runs:int=5)->dict:
+    history=experiment_history(domain,limit=50)
+    observed=[x for x in history if x.get("challenger")]
+    challenger=list_strategies(domain)
+    challenger=next((x for x in challenger if x["status"]=="challenger"),None)
+    if not challenger:return {"eligible":False,"reason":"No active challenger","evidence_runs":0}
+    same=[x for x in observed if (x.get("challenger") or {}).get("id")==challenger["id"]]
+    if len(same)<min_runs:return {"eligible":False,"reason":f"Requires at least {min_runs} repeated evaluations","evidence_runs":len(same),"challenger":challenger}
+    failures=sum(1 for x in same if x["decision"] not in {"observe","eligible"})
+    eligible=failures==0
+    return {"eligible":eligible,"reason":"Repeated evaluation gate passed" if eligible else "One or more evaluations failed governance gates","evidence_runs":len(same),"challenger":challenger}
+
+
+def governance_dashboard(domain:str)->dict:
+    return {
+        "domain":domain,
+        "champion":get_champion(domain),
+        "strategies":list_strategies(domain),
+        "promotion_gate":promotion_gate(domain),
+        "experiments":experiment_history(domain,20),
+    }
