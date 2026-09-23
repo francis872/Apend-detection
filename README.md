@@ -300,3 +300,17 @@ Endpoints:
 - `GET /v1/governance/promotion-gate/{domain}?min_runs=5`
 
 Meridian 2.0 separa claramente deteccion de drift, elegibilidad para promocion y accion de promocion/rollback.
+
+
+## Meridian 2.1 - Territorial Workspace 2.0
+
+El mapa deja de ser una salida pasiva y se convierte en un espacio de investigacion territorial.
+
+- **Region selection:** Shift + drag permite delimitar hasta dos regiones directamente sobre el mapa.
+- **Region comparison:** A/B calcula observaciones, eventos criticos y score medio dentro de cada bounding box, mostrando diferencias territoriales inmediatas.
+- **Layer controls:** normal/anomalias y filtros analiticos para señales espaciales o temporales altas.
+- **Timeline:** cuando existen timestamps, el mapa puede recortar visualmente las observaciones hasta un punto del periodo.
+- **Rule-based alerts:** el Workspace resume concentraciones criticas y señales espaciales/temporales sin presentarlas como causalidad.
+- **Richer point context:** la API entrega timestamp, scores probability/spatial/temporal y consensus junto a cada punto de mapa.
+
+Esta primera seleccion territorial es client-side y rectangular. No sustituye una consulta GIS de poligonos arbitrarios ni una comparacion estadistica inferencial entre regiones; esas capacidades quedan como siguiente evolucion del motor territorial.
