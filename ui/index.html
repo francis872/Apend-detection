@@ -213,6 +213,12 @@ async function inspectSelected(){
     $('stage').textContent='inspected';$('bar').style.width='100%';$('pct').textContent='100%';
     $('status').textContent='Source validated · '+j.rows+' records · CRS '+(j.crs||'unknown')+' · '+j.numeric_variables.length+' numeric variables.';
     $('variableCount').textContent=j.numeric_variables.length+' variables';
+    if($('domain')&&$('domain').value!=='general'){
+      try{
+        const pr=await fetch('/v1/domains/'+$('domain').value+'/configure?columns='+encodeURIComponent(j.numeric_variables.join(','))+'&probability_feature='+encodeURIComponent($('variable').value),{method:'POST'});
+        if(pr.ok){const dp=await pr.json(); if(dp.probability_feature&&j.numeric_variables.includes(dp.probability_feature))$('variable').value=dp.probability_feature; [...$('compareVars').options].forEach(o=>o.selected=dp.variables.includes(o.value)); $('domainHint').textContent=dp.pack.name+' · matched '+(dp.matched_variables.join(', ')||'generic numeric variables')+' · governance '+dp.governance;}
+      }catch{}
+    }
     addActivity('Data source validated',j.rows+' observations · '+j.numeric_variables.length+' numeric variables');
     $('run').disabled=!j.valid;
     if(j.valid && $('autoRun').checked){
@@ -242,6 +248,7 @@ async function startAnalysis(){
   $('run').disabled=true;$('stage').textContent='upload';$('status').textContent='Subiendo dataset para análisis…';
   let fd=formFiles();
   fd.append('probability_feature',$('variable').value);
+  fd.append('domain',$('domain')?.value||'general');
   fd.append('variables',[...$('compareVars').selectedOptions].map(o=>o.value).join(','));
   fd.append('noise_level','99');fd.append('quadrature_order','48');
   if($('mode').value==='advanced'){let w={};document.querySelectorAll('[data-weight]').forEach(i=>w[i.dataset.weight]=+i.value);fd.append('weights_json',JSON.stringify(w))}
@@ -256,6 +263,10 @@ async function startAnalysis(){
   }
 }
 $('run').onclick=startAnalysis;
+$('domain')?.addEventListener('change',async()=>{
+  const id=$('domain').value;
+  try{const r=await fetch('/v1/domains/'+id);if(!r.ok)return;const d=await r.json();$('domainHint').textContent=d.description+' · Sources: '+d.sources.join(', ')+' · Governance: '+d.governance;addActivity('Domain Pack selected',d.name)}catch{}
+});
 
 async function poll(id){
   let busy=false;
@@ -283,6 +294,7 @@ async function poll(id){
 function killCharts(){charts.forEach(c=>c.destroy());charts=[]}
 function render(j){
   let s=j.summary.detector;
+  if(j.domain_profile&&$('domainHint')) $('domainHint').textContent=j.domain_profile.pack.name+' · '+j.domain_profile.matched_variables.length+' domain variables matched · governance '+j.domain_profile.governance;
   $('rows').textContent=fmt(s.rows);
   $('best').textContent=s.best_distribution.toUpperCase();
   $('o99').textContent=fmt(s.counts['99']);
