@@ -175,3 +175,23 @@ Nuevo endpoint: `POST /v1/semantic/contract?domain_id=<domain>&columns=<csv>`.
 Pipeline 1.3:
 
 `Source -> Profiling -> Semantic Mapping -> Data Contract -> Domain Profile -> Meridian Core -> Intelligence Layer`.
+
+
+## Meridian 1.4 - Autopilot
+
+Autopilot convierte la inspeccion y configuracion en un flujo automatico. Al recibir una fuente, Meridian:
+
+1. perfila columnas y calidad;
+2. infiere un Domain Pack mediante coincidencia semantica explicable;
+3. genera el Semantic Data Contract;
+4. selecciona la variable probabilistica;
+5. selecciona hasta ocho medidas utiles;
+6. aplica el perfil de pesos del dominio;
+7. bloquea la ejecucion si faltan requisitos estructurales minimos;
+8. conserva warnings de gobernanza y trazabilidad;
+9. ejecuta el mismo Meridian Core cientifico;
+10. entrega findings y artefactos como antes.
+
+La inferencia de dominio es una heuristica de configuracion basada en nombres de campos; no se presenta como una clasificacion cientifica del dataset. El usuario puede reemplazar Autopilot seleccionando manualmente un Domain Pack.
+
+Endpoint de planificacion: `POST /v1/autopilot/plan?domain=auto&columns=<csv>`.
