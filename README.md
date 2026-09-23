@@ -388,3 +388,26 @@ Endpoints:
 Pipeline:
 
 `New Analysis -> Active Territorial Objects -> Spatial Selection -> Snapshot -> Historical Baseline -> Change Detection -> Findings / Alerts -> Monitoring History`.
+
+
+## Meridian 2.5 - Territorial Alerting & Watchlists
+
+Meridian incorpora un Operations Center para convertir cambios territoriales en incidentes operacionales.
+
+- **Watchlists:** agrupan Territorial Objects que requieren seguimiento.
+- **Subscriptions:** un territorio puede suscribirse a una watchlist sin duplicar su geometría.
+- **Alert Rules:** reglas deterministas sobre change score, niveles 90/95/99, anomaly score, spatial, temporal y consensus.
+- **Deduplication:** cada combinación watchlist + territorio + regla produce un fingerprint estable. Nuevas corridas actualizan el incidente existente en lugar de crear ruido duplicado.
+- **Escalation:** si una regla activa aumenta de severidad, el incidente pasa a `escalated`.
+- **Resolution:** cuando una condición deja de cumplirse, el incidente abierto pasa automáticamente a `resolved`.
+- **Operations Center:** resume watchlists, reglas, incidentes activos, críticos, altos y resueltos.
+- **Automatic processing:** después de Territorial Monitoring, cada análisis procesa las reglas de las watchlists contra los snapshots recién calculados.
+
+Endpoints:
+- `GET /v1/operations`
+- `GET/POST /v1/watchlists`
+- `POST /v1/watchlists/{watchlist_id}/objects/{object_key}`
+- `GET/POST /v1/watchlists/{watchlist_id}/rules`
+- `GET /v1/incidents`
+
+Las reglas son configuraciones operacionales explícitas. Una alerta indica que una condición definida fue satisfecha; no implica por sí misma causalidad, peligro real ni una predicción.
