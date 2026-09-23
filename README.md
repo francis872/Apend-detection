@@ -465,3 +465,22 @@ El resultado incluye quality_score (indice de calidad, no probabilidad), grade, 
 Endpoint: POST /v1/data-quality. En el pipeline normal el reporte queda almacenado dentro de domain_profile.data_quality y la decision queda registrada por Meridian Orchestrator.
 
 Este es el primer bloque inspirado por el benchmark de plataformas geoespaciales empresariales: Source -> Data Quality -> Semantic Contract -> Enrichment -> Meridian Core. Los siguientes bloques previstos son Earth Observation Adapter e Infrastructure Monitoring Pack.
+
+
+## Meridian 3.0 - Earth Observation Adapter
+
+Meridian puede descubrir observaciones satelitales por bbox o por geometria de un Territorial Object mediante STAC. La primera capa soporta Sentinel-2 L2A mediante Earth Search y Landsat Collection 2 Level 2 / MODIS Surface Reflectance mediante Microsoft Planetary Computer.
+
+El adaptador conserva proveedor, collection, fecha, cloud cover, assets disponibles, indices que pueden derivarse y enlace STAC de procedencia. El catalogo inicial define planes para NDVI, NDMI, NBR, NDWI y LST cuando el sensor dispone de los assets necesarios.
+
+Meridian separa descubrimiento de escenas y calculo raster: no descarga ni procesa silenciosamente grandes rasters, no inventa bandas y no aplica escalamiento termico sin metadata del producto. build_index_plan declara exactamente que assets necesita cada indice antes de ejecutar procesamiento posterior.
+
+Endpoints:
+- GET /v1/earth-observation/catalog
+- POST /v1/earth-observation/search
+- POST /v1/earth-observation/index-plan
+- POST /v1/earth-observation/territorial/{object_key}/search
+
+Pipeline inicial: Territorial Object -> WGS84 bounds -> STAC Search -> Scene Catalog -> Asset/Index Plan -> future Raster Processing -> Meridian Monitoring.
+
+El siguiente subbloque de 3.0 es Raster Processing: lectura remota por ventana, cloud masking, escalamiento por producto, calculo real de indices, zonal statistics y snapshots EO para Territorial Monitoring.
