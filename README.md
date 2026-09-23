@@ -361,3 +361,30 @@ Endpoints:
 - `GET /v1/territorial/alerts`
 
 Los findings son reglas descriptivas sobre evidencia calculada; no convierten asociación espacial o temporal en causalidad.
+
+
+## Meridian 2.4 - Territorial Monitoring
+
+Los Territorial Objects pasan a ser entidades vivas. Al finalizar un análisis, Meridian intenta evaluar automáticamente todos los objetos territoriales activos contra el nuevo `analysis.gpkg`.
+
+Cada evaluación guarda un snapshot independiente con:
+- versión del objeto;
+- job que produjo la observación;
+- resumen territorial;
+- baseline histórico;
+- cambio detectado;
+- estado y timestamp.
+
+El baseline necesita al menos tres observaciones históricas y usa la mediana y MAD de una ventana reciente. Una métrica genera señal de cambio cuando su desviación robusta alcanza el umbral configurado de 3.5. El score resume magnitud de cambio, pero no se interpreta como probabilidad.
+
+Cuando un territorio cambia, Meridian genera alertas `territorial_change` con métrica, dirección, valor actual, baseline y desviación. Estas alertas describen cambios respecto al historial del propio territorio; no establecen causalidad.
+
+Endpoints:
+- `GET /v1/territorial/monitoring/{object_key}`
+- `GET /v1/territorial/monitoring/{object_key}/history`
+- `POST /v1/territorial/monitoring/{object_key}/run/{job_id}`
+- `POST /v1/territorial/monitoring/run/{job_id}`
+
+Pipeline:
+
+`New Analysis -> Active Territorial Objects -> Spatial Selection -> Snapshot -> Historical Baseline -> Change Detection -> Findings / Alerts -> Monitoring History`.
