@@ -22,6 +22,8 @@ from scipy import stats
 from .comparison import compare_variables
 from .derivatives import find_inflection_points
 from .detector import detect_outliers
+from .domains import get_domain_pack, list_domain_packs
+from .intelligence import build_intelligence
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
 from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms, fetch_firms_area, sample_weather_enrichment
@@ -29,7 +31,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -64,20 +66,8 @@ def _hash_files(paths):
     return h.hexdigest()
 
 
-def _intelligence_feed(summary:dict):
-    items=[]
-    spatial=summary.get("spatial_validation",{})
-    temporal=summary.get("temporal_validation",{})
-    counts=summary.get("counts",{})
-    if counts.get("99",counts.get(99,0)):
-        items.append({"severity":"critical","type":"anomaly","title":"Critical anomalies detected","detail":f"{counts.get('99',counts.get(99,0))} observations reached the empirical 99% anomaly-score quantile."})
-    if spatial.get("hotspots",0):
-        items.append({"severity":"high","type":"spatial","title":"Spatial concentration detected","detail":f"{spatial['hotspots']} observations show high-high local spatial association."})
-    if spatial.get("clusters",0):
-        items.append({"severity":"elevated","type":"spatial","title":"Spatial clusters identified","detail":f"{spatial['clusters']} proximity clusters were identified by DBSCAN context analysis."})
-    if temporal.get("change_point_count",0):
-        items.append({"severity":"elevated","type":"temporal","title":"Temporal changes detected","detail":f"{temporal['change_point_count']} robust change-point candidates were detected."})
-    return items[:8]
+def _intelligence_feed(summary:dict,domain:str="general"):
+    return [{"severity":x["severity"],"type":x["dimension"],"title":x["title"],"detail":x["statement"],"evidence":x["evidence"],"domain":x["domain"]} for x in build_intelligence(summary,domain)]
 
 
 def _map_points(scored,max_points=5000):
@@ -194,6 +184,18 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
 
 @app.get("/health")
 def health(): return {"status":"ok","service":"Meridian","version":VERSION}
+
+@app.get("/v1/domains")
+def domains(): return {"engine":"Meridian","version":VERSION,"domains":list_domain_packs()}
+
+@app.get("/v1/domains/{domain_id}")
+def domain(domain_id:str):
+    try:return get_domain_pack(domain_id)
+    except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
+
+@app.get("/v1/capabilities")
+def capabilities():
+    return {"engine":"Meridian","version":VERSION,"analysis":["probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
