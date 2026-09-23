@@ -220,6 +220,19 @@ TERRITORIAL_MIGRATIONS=[
     );
     CREATE INDEX IF NOT EXISTS idx_land_divergence_territory_time ON land_use_divergence(territory_id,timestamp);
     """),
+    (7,"trajectory_watch","""
+    CREATE TABLE IF NOT EXISTS trajectory_assessments(
+      id TEXT PRIMARY KEY,
+      territory_id TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      status TEXT NOT NULL,
+      evidence_json TEXT NOT NULL,
+      methodology_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_trajectory_assessments_territory_time ON trajectory_assessments(territory_id,timestamp);
+    CREATE INDEX IF NOT EXISTS idx_trajectory_assessments_status ON trajectory_assessments(status,created_at);
+    """),
 ]
 
 
