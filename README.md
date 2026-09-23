@@ -314,3 +314,23 @@ El mapa deja de ser una salida pasiva y se convierte en un espacio de investigac
 - **Richer point context:** la API entrega timestamp, scores probability/spatial/temporal y consensus junto a cada punto de mapa.
 
 Esta primera seleccion territorial es client-side y rectangular. No sustituye una consulta GIS de poligonos arbitrarios ni una comparacion estadistica inferencial entre regiones; esas capacidades quedan como siguiente evolucion del motor territorial.
+
+
+## Meridian 2.2 - Spatial Query Engine
+
+Territorial Workspace evoluciona de bounding boxes client-side a consultas GIS sobre la capa completa exportada por cada analisis.
+
+- **Free polygons:** Leaflet Draw permite dibujar poligonos o rectangulos A/B sobre el mapa.
+- **Server-side spatial query:** Meridian carga `analysis.gpkg` del job, normaliza a EPSG:4326 y selecciona observaciones mediante interseccion geometrica.
+- **Statistical A/B comparison:** resume filas, niveles 90/95/99, anomaly score y componentes; con muestras suficientes ejecuta Mann-Whitney U, KS de dos muestras y efecto rank-biserial.
+- **Persistent territorial layers:** las regiones pueden guardarse en `runtime/meridian_territorial.sqlite3` con nombre, job, GeoJSON y metadata.
+- **Scientific boundary:** diferencias y p-values describen las muestras territoriales seleccionadas; no se interpretan como causalidad.
+
+Endpoints:
+- `POST /v1/territorial/query/{job_id}`
+- `POST /v1/territorial/compare/{job_id}`
+- `GET /v1/territorial/layers`
+- `POST /v1/territorial/layers`
+- `DELETE /v1/territorial/layers/{layer_id}`
+
+La siguiente evolucion natural es convertir capas guardadas en objetos territoriales versionados, añadir consultas por buffers/corredores y generar findings/alerts especificamente dentro de cada territorio.
