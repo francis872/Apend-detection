@@ -29,7 +29,7 @@ from .automation import build_autopilot_plan
 from .enrichment import plan_auto_enrichment, execute_auto_enrichment
 from .orchestrator import MeridianOrchestrator
 from .event_store import append_event, list_events, event_stats
-from .governance import ensure_champion, get_champion, register_challenger, list_strategies, evaluate_strategy, promote, rollback
+from .governance import ensure_champion, get_champion, register_challenger, list_strategies, evaluate_strategy, promote, rollback, experiment_history, monitor_drift, promotion_gate, governance_dashboard
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
 from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms, fetch_firms_area, sample_weather_enrichment
@@ -37,7 +37,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="1.9.0"
+VERSION="2.0.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -204,6 +204,9 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
 
         elapsed=time.perf_counter()-started
         governance=evaluate_strategy(job_id,domain,summary,elapsed)
+        drift=monitor_drift(job_id,domain,summary)
+        governance["drift"]=drift
+        governance["promotion_gate"]=promotion_gate(domain)
         summary["algorithm_governance"]=governance
         payload={"job_id":job_id,"summary":{"cleaning":cleaning,"detector":summary},
           "outputs":{k:f"/jobs/{job_id}/files/{v}" for k,v in outputs.items()},
@@ -282,6 +285,23 @@ def configure_domain_endpoint(domain_id:str, columns:str="", probability_feature
     try:return configure_domain(domain_id,numeric,probability_feature or None)
     except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
 
+@app.get("/v1/governance/dashboard/{domain}")
+def governance_domain_dashboard(domain:str):
+    return governance_dashboard(domain)
+
+@app.get("/v1/governance/experiments")
+def governance_experiments(domain:str="",limit:int=100):
+    return {"experiments":experiment_history(domain or None,limit)}
+
+@app.get("/v1/governance/drift/{domain}")
+def governance_drift(domain:str):
+    history=experiment_history(domain,20)
+    return {"domain":domain,"experiments":len(history),"note":"Drift is evaluated during completed analyses and stored in governance/Event Store."}
+
+@app.get("/v1/governance/promotion-gate/{domain}")
+def governance_promotion_gate(domain:str,min_runs:int=5):
+    return promotion_gate(domain,min_runs)
+
 @app.get("/v1/governance/strategies")
 def governance_strategies(domain:str=""):
     return {"strategies":list_strategies(domain or None)}
@@ -312,7 +332,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
