@@ -27,6 +27,7 @@ from .intelligence import build_intelligence
 from .semantics import semantic_contract, apply_contract
 from .automation import build_autopilot_plan
 from .enrichment import plan_auto_enrichment, execute_auto_enrichment
+from .orchestrator import MeridianOrchestrator
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
 from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms, fetch_firms_area, sample_weather_enrichment
@@ -34,7 +35,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="1.6.0"
+VERSION="1.7.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -113,14 +114,15 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
     params={"probability_feature":probability_feature,"variables":variables,"noise_level":noise_level,
             "quadrature_order":quadrature_order,"weights":weights}
     save_analysis(job_id,"running",input_hash=input_hash,probability_feature=probability_feature,params=params)
+    orchestrator=MeridianOrchestrator(job_id)
     try:
-        _progress(job_id,10,"loading","Loading geospatial observations")
+        _progress(job_id,10,"orchestrating","Orchestrator is validating the source")
         gdf=source_gdf.copy() if source_gdf is not None else load_and_append(inputs)
-        if gdf.crs is None: raise ValueError("Dataset has no CRS. Define the source CRS before analysis.")
-        if len(gdf)<30: raise ValueError("Dataset is too small; at least 30 valid records are required.")
+        if not orchestrator.gate_source(gdf)["ok"]: raise ValueError(orchestrator.finalize()["decisions"][-1]["reason"])
         autopilot=build_autopilot_plan(gdf,domain)
+        if not orchestrator.gate_autopilot(autopilot)["ok"]: raise ValueError(orchestrator.finalize()["decisions"][-1]["reason"])
         if domain in ("","auto",None): domain=autopilot["selected_domain"]
-        if not autopilot["ready"]: raise ValueError("Autopilot blocked analysis: "+"; ".join(autopilot["blockers"]))
+        # Autopilot readiness is enforced by the orchestrator quality gate.
         pack=get_domain_pack(domain)
         contract=semantic_contract(gdf,pack)
         gdf,semantic_aliases=apply_contract(gdf,contract)
@@ -134,6 +136,10 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         probability_feature=profile["probability_feature"]
         variables=profile["variables"]
         weights=profile["weights"]
+        strategy=orchestrator.choose_analysis_strategy(len(gdf),variables,quadrature_order)
+        quadrature_order=strategy["quadrature_order"]
+        variables=strategy.get("variables",variables)
+        profile["orchestration_strategy"]=strategy
         if probability_feature not in numeric: raise ValueError("No usable numeric probability feature was found")
 
         _progress(job_id,20,"cleaning","Cleaning geometry, duplicates and invalid values")
@@ -146,13 +152,15 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         component_data=summary.pop("_components_for_validation",{})
         components=pd.DataFrame(component_data)
         summary["model_validation"]={
-            "bootstrap":bootstrap_distribution_stability(gdf[probability_feature],n_boot=3,sample_size=1000),
+            "bootstrap":bootstrap_distribution_stability(gdf[probability_feature],n_boot=strategy["bootstrap_n"],sample_size=1000),
             "ablation":ablation_sensitivity(components,summary["ensemble_weights"])
         }
         projected=gdf.to_crs(gdf.estimate_utm_crs())
         coords=np.c_[projected.geometry.x,projected.geometry.y]
         chosen=[v for v in variables if v in numeric] or [probability_feature]
-        comparison=compare_variables(gdf,chosen,coords,quadrature_order=min(24,quadrature_order),max_sample=10000)
+        comparison=compare_variables(gdf,chosen,coords,quadrature_order=min(24,quadrature_order),max_sample=strategy["comparison_sample"])
+        orchestrator.evaluate_distribution(summary)
+        orchestrator.evaluate_validation(summary)
         summary["variable_comparison"]=comparison
         summary["domain_profile"]=profile
 
@@ -178,6 +186,8 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         _progress(job_id,84,"enrichment","Autopilot is evaluating and retrieving relevant external context")
         enrichment=execute_auto_enrichment(scored,enrichment_plan,max_weather_points=8)
         summary["external_context"]={"auto_enrichment":enrichment}
+        orchestrator.evaluate_enrichment(enrichment)
+        summary["orchestration"]=orchestrator.finalize()
 
         _progress(job_id,88,"exporting","Exporting GeoPackage, CSV, JSON and reports")
         outputs=export_analysis(scored,fits,cleaning,summary,results,noise_level=noise_level)
@@ -191,13 +201,14 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
           "numeric_variables":numeric,"comparison":comparison,"elapsed_seconds":elapsed,
           "analysis_status":{"numeric_detected":len(numeric),"variables_compared":len(comparison),
             "map_points":len(_map_points(scored,max_points=5000)),"anomaly_rows":len(_table_rows(scored,limit=300))},
-          "domain_profile":profile,"intelligence_feed":_intelligence_feed(summary,domain)}
+          "domain_profile":profile,"orchestration":summary.get("orchestration"),"intelligence_feed":_intelligence_feed(summary,domain)}
         
         (results/"response.json").write_text(json.dumps(payload,ensure_ascii=False),encoding="utf-8")
         save_analysis(job_id,"complete",input_hash=input_hash,probability_feature=probability_feature,
           rows=len(scored),crs=str(gdf.crs),params=params,summary=summary,outputs=outputs,elapsed_seconds=elapsed)
         _progress(job_id,100,"complete",f"Analysis completed in {elapsed:.1f}s")
     except Exception as e:
+        orchestrator.record("runtime","blocked","stop",str(e),False,"manual_review")
         save_analysis(job_id,"failed",input_hash=input_hash,probability_feature=probability_feature,params=params,error=str(e))
         _progress(job_id,100,"failed",str(e))
 
@@ -246,9 +257,13 @@ def configure_domain_endpoint(domain_id:str, columns:str="", probability_feature
     try:return configure_domain(domain_id,numeric,probability_feature or None)
     except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
 
+@app.get("/v1/orchestrator/policy")
+def orchestrator_policy():
+    return {"engine":"Meridian Orchestrator","version":VERSION,"principles":["deterministic decisions","hard quality gates","adaptive runtime strategy","external context is optional","no silent score mutation","no causal claims from correlation"],"large_dataset_threshold":150000,"balanced_threshold":60000,"max_multivariate_variables":8}
+
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
