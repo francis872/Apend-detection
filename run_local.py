@@ -35,7 +35,7 @@ def check_port():
 
 def main():
     print("="*50)
-    print(" APEND DETECTION 1.1 - LOCALHOST")
+    print(" MERIDIAN 1.1 - LOCALHOST")
     print("="*50)
     print("Python:",sys.version.split()[0])
     if sys.version_info < (3,10):
