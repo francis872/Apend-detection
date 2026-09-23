@@ -10,7 +10,7 @@ from sklearn.preprocessing import RobustScaler
 from .probability import fit_distributions
 from .quadrature import quadrature_tail_score, confidence_interval_areas
 from .geometry import local_spd_scores, procrustes_neighborhood_scores
-from .spatial import spatial_validation
+from .spatial import spatial_validation, local_moran_lisa, spatial_density
 from .temporal import temporal_validation
 from .derivatives import observation_derivative_features
 
@@ -75,6 +75,8 @@ def detect_outliers(
         spd,proc=spd_s[nearest],proc_s[nearest]
 
     spatial,spatial_meta=spatial_validation(coords,raw,k=12)
+    lisa=local_moran_lisa(coords,raw,k=12,permutations=199,random_state=42)
+    density=spatial_density(coords,k=12)
     temporal,temporal_meta=temporal_validation(x,probability_feature)
     derivative_features,derivative_meta=observation_derivative_features(raw,best['distribution'],params)
 
@@ -100,6 +102,11 @@ def detect_outliers(
     x['probability_quadrature_score']=quad_score
     for name,values in derivative_features.items(): x[name]=values
     x['outlier_score']=ensemble
+    x['local_moran_i']=lisa['local_i']
+    x['local_moran_pvalue']=lisa['pvalue']
+    x['lisa_cluster']=lisa['cluster']
+    x['lisa_significant']=lisa['significant']
+    x['spatial_density_rank']=density
 
     thresholds={}
     for level in confidence_levels:
