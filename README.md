@@ -224,3 +224,18 @@ Nuevo endpoint: `POST /v1/enrichment/plan`.
 Pipeline 1.6:
 
 `Source -> Universal Ingestion -> Autopilot -> Semantic Contract -> Enrichment Plan -> Meridian Core -> Context Retrieval -> Intelligence + Provenance`.
+
+
+## Meridian 1.7 - Orchestrator
+
+Meridian Orchestrator coordina el ciclo completo de Autopilot mediante decisiones deterministas y auditables.
+
+`Ingestion -> Source Gate -> Autopilot Gate -> Adaptive Strategy -> Core Analysis -> Validation Gate -> Enrichment -> Intelligence -> Export`
+
+El Orchestrator puede detener una ejecucion cuando faltan requisitos duros, continuar con advertencias cuando una limitacion no invalida el analisis y adaptar el costo computacional segun el volumen. Para datasets mayores de 60k registros usa un perfil balanceado; sobre 150k reduce de forma explicita cuadratura, bootstrap y muestra comparativa. El limite multivariado permanece en ocho variables.
+
+Una mala adecuacion de la distribucion no se oculta: el Orchestrator conserva el resultado y prioriza el consenso del ensemble. Un fallo de Open-Meteo o FIRMS degrada solo el contexto externo, no el analisis principal.
+
+Cada decision registra `stage`, `status`, `action`, `reason`, `retryable` y `strategy`. El resultado final incluye un bloque `orchestration` para auditoria.
+
+Nuevo endpoint: `GET /v1/orchestrator/policy`.
