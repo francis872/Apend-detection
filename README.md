@@ -454,3 +454,14 @@ Cada observacion puede exportar local_moran_i, local_moran_pvalue, lisa_cluster,
 El score espacial combina residual vecinal, spatial LOF, magnitud Local Moran y densidad. Los hotspots/coldspots reportados en spatial_validation pasan a significar HH/LL localmente significativos bajo el procedimiento de permutacion implementado, en lugar de simples coincidencias de signo.
 
 Importante: los p-values son evidencia inferencial bajo el esquema kNN/permutacion elegido; no prueban causalidad y son sensibles a la definicion de vecindad y al numero de permutaciones.
+
+
+## Meridian 2.9 - Data Quality Engine
+
+Meridian incorpora una puerta de calidad espacial antes de Autopilot y del motor cientifico. El Data Quality Engine inspecciona CRS, geometria ausente/vacia/invalida, geometria duplicada, rangos WGS84 para puntos y missingness por columna.
+
+El resultado incluye quality_score (indice de calidad, no probabilidad), grade, issues, blockers y una decision de quality gate. Problemas criticos como ausencia de CRS o coordenadas fuera de rango pueden bloquear el analisis; degradaciones no criticas permanecen visibles como warnings. La politica no repara silenciosamente la fuente.
+
+Endpoint: POST /v1/data-quality. En el pipeline normal el reporte queda almacenado dentro de domain_profile.data_quality y la decision queda registrada por Meridian Orchestrator.
+
+Este es el primer bloque inspirado por el benchmark de plataformas geoespaciales empresariales: Source -> Data Quality -> Semantic Contract -> Enrichment -> Meridian Core. Los siguientes bloques previstos son Earth Observation Adapter e Infrastructure Monitoring Pack.
