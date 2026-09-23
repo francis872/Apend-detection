@@ -127,3 +127,38 @@ La interfaz localhost incorpora mapa Leaflet, inspeccion previa de Shapefiles, s
 Los jobs se persisten localmente en `runtime/apend_detection.sqlite3`. Los resultados de cada corrida permanecen en `runtime/jobs/<job_id>/results`.
 
 Endpoints principales: `/inspect`, `/analyze`, `/jobs/{id}/progress`, `/jobs/{id}/result`, `/history`, `/health`.
+
+
+## Meridian 1.2 - Multi-industry Geospatial Intelligence Engine
+
+**Meridian detects where, when and why a territory is behaving differently.**
+
+La arquitectura se separa en cuatro capas:
+
+```
+Data Sources -> Meridian Core -> Intelligence Layer -> Workspace / API / Platforms
+                    |
+          Probability / Spatial / Temporal
+          Compare / Explain / Validation
+                    |
+                Domain Packs
+```
+
+### Domain Packs
+
+El motor cientifico es comun y los paquetes de dominio describen variables, fuentes, casos de uso y requisitos de gobernanza. Meridian 1.2 registra diez dominios iniciales: Environment & Climate, Precision Agriculture, Risk & Disaster, Smart Cities, Real Estate, Infrastructure, Logistics & Transport, Energy, Territorial Public Health y Earth Observation & Aerospace.
+
+Los Domain Packs no alteran resultados para forzar una narrativa sectorial. Son contratos semanticos para integrar datos y construir experiencias por industria sobre el mismo motor analitico. Public Health se marca como `restricted` para exigir controles adicionales antes de un uso operacional.
+
+### Intelligence Layer
+
+`src/geo_outliers/intelligence.py` convierte evidencia calculada por el motor en findings estructurados. Cada finding conserva dimension, severidad, evidencia y statement. La capa no reemplaza las metricas cientificas originales.
+
+### Engine API
+
+- `GET /v1/capabilities` - capacidades del motor y dominios.
+- `GET /v1/domains` - catalogo de Domain Packs.
+- `GET /v1/domains/{domain_id}` - contrato de un dominio.
+- Los endpoints existentes de analisis, jobs, fuentes reales e historial permanecen compatibles.
+
+Esta separacion permite usar Meridian como producto independiente o como motor analitico de plataformas como Backstage, sistemas agricolas, proteccion civil, infraestructura, energia y futuras capas de observacion terrestre.
