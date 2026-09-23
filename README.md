@@ -195,3 +195,14 @@ Autopilot convierte la inspeccion y configuracion en un flujo automatico. Al rec
 La inferencia de dominio es una heuristica de configuracion basada en nombres de campos; no se presenta como una clasificacion cientifica del dataset. El usuario puede reemplazar Autopilot seleccionando manualmente un Domain Pack.
 
 Endpoint de planificacion: `POST /v1/autopilot/plan?domain=auto&columns=<csv>`.
+
+
+## Meridian 1.5 - Universal Automated Ingestion
+
+Meridian Autopilot acepta ahora ZIP Shapefile, GeoPackage, GeoJSON, JSON, CSV, Excel y Parquet. Las fuentes tabulares pueden convertirse automaticamente a geometria WGS84 cuando contienen pares reconocibles de latitud/longitud (incluyendo aliases lat/lon, latitud/longitud y x/y).
+
+El pipeline automatico es:
+
+`Source -> Format Adapter -> Geometry -> Profiling -> Domain Inference -> Semantic Contract -> Analysis Profile -> Meridian Core -> Intelligence`.
+
+Meridian conserva la fuente original, registra `_source_file`, valida coordenadas y no inventa geometria cuando no existe informacion espacial suficiente. En ese caso la ingesta se bloquea con un error explicable.
