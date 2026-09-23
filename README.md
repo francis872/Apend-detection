@@ -429,3 +429,17 @@ Endpoints:
 - GET /v1/operations/cases
 
 El Operations Center permite abrir un incidente, reconocerlo, asignarlo, moverlo a investigacion, agregar notas, resolverlo y consultar su brief territorial.
+
+
+## Meridian 2.7 - Hardening & Regression Safety
+
+Esta version detiene temporalmente la expansion funcional para reforzar la base operacional de Meridian.
+
+- **SQLite schema migrations:** migrations.py mantiene versiones idempotentes para la base principal y la base territorial. Las migraciones se ejecutan al iniciar la API y quedan registradas en schema_migrations.
+- **Migration health:** /health expone el estado de migraciones y /v1/system/migrations permite inspeccionarlas. POST /v1/system/migrations vuelve a ejecutar el gestor de forma idempotente.
+- **API regression tests:** health, migration contract, Operations Center contract, errores 404 y validacion de ZIP.
+- **Incident lifecycle tests:** crea un incidente aislado, inicializa management, asigna owner/prioridad, acknowledge, investigacion, nota, Intelligence Brief y resolucion.
+- **Database isolation:** las pruebas del ciclo de incidentes usan una SQLite temporal y no escriben sobre runtime/meridian_territorial.sqlite3.
+- **Migration idempotency test:** una segunda aplicacion del mismo esquema no vuelve a ejecutar migraciones.
+
+La suite CI existente ejecuta pytest -q; estas pruebas quedan incluidas automaticamente. La version 2.7 prioriza compatibilidad regresiva y auditabilidad antes de agregar nuevos modulos.
