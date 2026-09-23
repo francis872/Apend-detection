@@ -24,6 +24,7 @@ from .derivatives import find_inflection_points
 from .detector import detect_outliers
 from .domains import get_domain_pack, list_domain_packs, configure_domain
 from .intelligence import build_intelligence
+from .semantics import semantic_contract, apply_contract
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
 from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms, fetch_firms_area, sample_weather_enrichment
@@ -31,7 +32,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -115,8 +116,13 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         gdf=source_gdf.copy() if source_gdf is not None else load_and_append(inputs)
         if gdf.crs is None: raise ValueError("Dataset has no CRS. Define the source CRS before analysis.")
         if len(gdf)<30: raise ValueError("Dataset is too small; at least 30 valid records are required.")
+        pack=get_domain_pack(domain)
+        contract=semantic_contract(gdf,pack)
+        gdf,semantic_aliases=apply_contract(gdf,contract)
         numeric=[c for c in gdf.columns if c!="geometry" and pd.to_numeric(gdf[c],errors="coerce").notna().sum()>=30]
         profile=configure_domain(domain,numeric,probability_feature,variables,weights)
+        profile["data_contract"]=contract
+        profile["semantic_aliases"]=semantic_aliases
         probability_feature=profile["probability_feature"]
         variables=profile["variables"]
         weights=profile["weights"]
@@ -198,6 +204,15 @@ def domain(domain_id:str):
     try:return get_domain_pack(domain_id)
     except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
 
+@app.post("/v1/semantic/contract")
+def semantic_contract_endpoint(domain_id:str="general", columns:str=""):
+    """Preview a semantic contract from column names when full source inspection is not required."""
+    try:pack=get_domain_pack(domain_id)
+    except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
+    cols=[x.strip() for x in columns.split(",") if x.strip()]
+    preview=pd.DataFrame({x:pd.Series([1.0]*30) for x in cols})
+    return semantic_contract(preview,pack)
+
 @app.post("/v1/domains/{domain_id}/configure")
 def configure_domain_endpoint(domain_id:str, columns:str="", probability_feature:str=""):
     numeric=[x.strip() for x in columns.split(",") if x.strip()]
@@ -206,7 +221,7 @@ def configure_domain_endpoint(domain_id:str, columns:str="", probability_feature
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
@@ -260,8 +275,10 @@ async def inspect(files:List[UploadFile]=File(...)):
             dest=inputs/f"s{i}";dest.mkdir();_safe_extract(zp,dest)
         gdf=load_and_append(inputs)
         numeric=[c for c in gdf.columns if c!="geometry" and pd.to_numeric(gdf[c],errors="coerce").notna().sum()>=30]
+        domain_id="general"
+        contract=semantic_contract(gdf,get_domain_pack(domain_id))
         return {"rows":len(gdf),"crs":str(gdf.crs) if gdf.crs else None,"numeric_variables":numeric,
-                "valid":bool(gdf.crs and len(gdf)>=30)}
+                "data_contract":contract,"valid":bool(gdf.crs and len(gdf)>=30)}
     except Exception as e: raise HTTPException(422,str(e))
     finally: shutil.rmtree(job,ignore_errors=True)
 
