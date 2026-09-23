@@ -61,6 +61,22 @@ def _connect():
       UNIQUE(object_key,job_id)
     )""")
     con.execute("""CREATE INDEX IF NOT EXISTS idx_monitoring_object ON territorial_monitoring(object_key,id)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS watchlists(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, domain TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS watchlist_objects(
+      watchlist_id INTEGER NOT NULL, object_key TEXT NOT NULL, created_at TEXT NOT NULL,
+      UNIQUE(watchlist_id,object_key))""")
+    con.execute("""CREATE TABLE IF NOT EXISTS alert_rules(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, watchlist_id INTEGER NOT NULL, name TEXT NOT NULL,
+      metric TEXT NOT NULL, operator TEXT NOT NULL, threshold REAL NOT NULL,
+      severity TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS alert_incidents(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, fingerprint TEXT NOT NULL UNIQUE, watchlist_id INTEGER,
+      object_key TEXT NOT NULL, rule_id INTEGER, first_job_id TEXT NOT NULL, last_job_id TEXT NOT NULL,
+      severity TEXT NOT NULL, status TEXT NOT NULL, title TEXT NOT NULL, evidence_json TEXT NOT NULL,
+      occurrences INTEGER NOT NULL DEFAULT 1, opened_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      resolved_at TEXT)""")
     return con
 
 
@@ -337,3 +353,105 @@ def territorial_monitoring_dashboard(object_key:str)->dict:
         "monitoring_runs":len(history),
         "latest_change":history[0]["change"] if history else None,
     }
+
+
+def create_watchlist(name:str,domain:str|None=None)->dict:
+    now=datetime.now(timezone.utc).isoformat()
+    with _connect() as con:
+        cur=con.execute("INSERT INTO watchlists(name,domain,enabled,created_at) VALUES(?,?,1,?)",(name,domain,now))
+        return {"id":int(cur.lastrowid),"name":name,"domain":domain,"enabled":True,"created_at":now}
+
+
+def list_watchlists()->list[dict]:
+    with _connect() as con:
+        rows=con.execute("""SELECT w.*,COUNT(wo.object_key) object_count
+          FROM watchlists w LEFT JOIN watchlist_objects wo ON wo.watchlist_id=w.id
+          GROUP BY w.id ORDER BY w.id DESC""").fetchall()
+    return [{**dict(r),"enabled":bool(r["enabled"])} for r in rows]
+
+
+def subscribe_object(watchlist_id:int,object_key:str)->dict:
+    if not any(x["object_key"]==object_key for x in list_territorial_objects(True,500)):raise KeyError(object_key)
+    now=datetime.now(timezone.utc).isoformat()
+    with _connect() as con:
+        con.execute("INSERT OR IGNORE INTO watchlist_objects(watchlist_id,object_key,created_at) VALUES(?,?,?)",(watchlist_id,object_key,now))
+    return {"watchlist_id":watchlist_id,"object_key":object_key,"subscribed":True}
+
+
+def create_alert_rule(watchlist_id:int,name:str,metric:str,operator:str,threshold:float,severity:str)->dict:
+    allowed_metrics={"change_score","critical_99","high_95","elevated_90","mean_score","mean_spatial","mean_temporal","consensus_mean"}
+    if metric not in allowed_metrics:raise ValueError("Unsupported alert metric")
+    if operator not in {">=",">","<=","<"}:raise ValueError("Unsupported operator")
+    if severity not in {"info","medium","high","critical"}:raise ValueError("Unsupported severity")
+    now=datetime.now(timezone.utc).isoformat()
+    with _connect() as con:
+        cur=con.execute("INSERT INTO alert_rules(watchlist_id,name,metric,operator,threshold,severity,enabled,created_at) VALUES(?,?,?,?,?,?,1,?)",
+                        (watchlist_id,name,metric,operator,float(threshold),severity,now))
+        rid=int(cur.lastrowid)
+    return {"id":rid,"watchlist_id":watchlist_id,"name":name,"metric":metric,"operator":operator,"threshold":float(threshold),"severity":severity,"enabled":True}
+
+
+def list_alert_rules(watchlist_id:int|None=None)->list[dict]:
+    with _connect() as con:
+        rows=con.execute("SELECT * FROM alert_rules WHERE watchlist_id=? ORDER BY id DESC",(watchlist_id,)).fetchall() if watchlist_id else con.execute("SELECT * FROM alert_rules ORDER BY id DESC").fetchall()
+    return [{**dict(r),"enabled":bool(r["enabled"])} for r in rows]
+
+
+def _rule_match(value:float,op:str,threshold:float)->bool:
+    return {">=":value>=threshold,">":value>threshold,"<=":value<=threshold,"<":value<threshold}[op]
+
+
+def _severity_rank(s:str)->int:return {"info":0,"medium":1,"high":2,"critical":3}.get(s,0)
+
+
+def process_watchlist_alerts(job_id:str,monitoring_results:list[dict])->dict:
+    by_object={x.get("object_key"):x for x in monitoring_results if x.get("status")!="error"}
+    opened=updated=resolved=0
+    now=datetime.now(timezone.utc).isoformat()
+    with _connect() as con:
+        subscriptions=con.execute("""SELECT wo.object_key,w.id watchlist_id,w.name watchlist_name
+          FROM watchlist_objects wo JOIN watchlists w ON w.id=wo.watchlist_id WHERE w.enabled=1""").fetchall()
+        active_fingerprints=set()
+        for sub in subscriptions:
+            result=by_object.get(sub["object_key"])
+            if not result:continue
+            rules=con.execute("SELECT * FROM alert_rules WHERE watchlist_id=? AND enabled=1",(sub["watchlist_id"],)).fetchall()
+            for rule in rules:
+                value=(result.get("change") or {}).get("score") if rule["metric"]=="change_score" else (result.get("summary") or {}).get(rule["metric"])
+                if not isinstance(value,(int,float)) or not np.isfinite(value):continue
+                fp=f'{sub["watchlist_id"]}:{sub["object_key"]}:{rule["id"]}'
+                if _rule_match(float(value),rule["operator"],float(rule["threshold"])):
+                    active_fingerprints.add(fp)
+                    evidence={"metric":rule["metric"],"value":float(value),"operator":rule["operator"],"threshold":float(rule["threshold"])}
+                    old=con.execute("SELECT * FROM alert_incidents WHERE fingerprint=?",(fp,)).fetchone()
+                    title=f'{rule["name"]} · {sub["watchlist_name"]}'
+                    if old and old["status"] in {"open","escalated"}:
+                        severity=rule["severity"]
+                        status="escalated" if _severity_rank(severity)>_severity_rank(old["severity"]) else old["status"]
+                        con.execute("UPDATE alert_incidents SET last_job_id=?,severity=?,status=?,evidence_json=?,occurrences=occurrences+1,updated_at=? WHERE fingerprint=?",
+                                    (job_id,severity,status,json.dumps(evidence),now,fp)); updated+=1
+                    else:
+                        con.execute("""INSERT OR REPLACE INTO alert_incidents(fingerprint,watchlist_id,object_key,rule_id,first_job_id,last_job_id,severity,status,title,evidence_json,occurrences,opened_at,updated_at,resolved_at)
+                          VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,NULL)""",(fp,sub["watchlist_id"],sub["object_key"],rule["id"],job_id,job_id,rule["severity"],"open",title,json.dumps(evidence),now,now)); opened+=1
+        existing=con.execute("SELECT fingerprint FROM alert_incidents WHERE status IN ('open','escalated')").fetchall()
+        for row in existing:
+            if row["fingerprint"] not in active_fingerprints:
+                con.execute("UPDATE alert_incidents SET status='resolved',resolved_at=?,updated_at=? WHERE fingerprint=?",(now,now,row["fingerprint"])); resolved+=1
+    return {"opened":opened,"updated":updated,"resolved":resolved,"active":len(active_fingerprints)}
+
+
+def list_incidents(status:str|None=None,limit:int=200)->list[dict]:
+    with _connect() as con:
+        rows=con.execute("SELECT * FROM alert_incidents WHERE status=? ORDER BY updated_at DESC LIMIT ?",(status,min(limit,500))).fetchall() if status else con.execute("SELECT * FROM alert_incidents ORDER BY updated_at DESC LIMIT ?",(min(limit,500),)).fetchall()
+    out=[]
+    for r in rows:
+        d=dict(r);d["evidence"]=json.loads(d.pop("evidence_json"));out.append(d)
+    return out
+
+
+def operations_center()->dict:
+    incidents=list_incidents(None,500)
+    active=[x for x in incidents if x["status"] in {"open","escalated"}]
+    return {"watchlists":list_watchlists(),"rules":list_alert_rules(),"active_incidents":active,
+            "counts":{"active":len(active),"critical":sum(x["severity"]=="critical" for x in active),
+                      "high":sum(x["severity"]=="high" for x in active),"resolved":sum(x["status"]=="resolved" for x in incidents)}}
