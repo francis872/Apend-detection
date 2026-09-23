@@ -43,9 +43,10 @@ from .earth_observation import sensor_catalog, index_catalog, search_scenes, sea
 from .computational_intelligence import euclidean_intelligence, compare_to_baseline
 from .raster_processing import process_scene
 from .socio_ecological import register_dataset, list_datasets, lineage, create_event, territorial_snapshot, snapshots, territorial_indicators, correlation, distance_model, hotspot, detect_corridors
+from .network_corridor import build_territorial_graph, shortest_path, detect_network_corridors
 from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts, monitor_object, monitor_all_objects, monitoring_history, territorial_monitoring_dashboard, create_watchlist, list_watchlists, subscribe_object, create_alert_rule, list_alert_rules, process_watchlist_alerts, list_incidents, operations_center
 
-VERSION="4.0.0"
+VERSION="4.1.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 MIGRATION_RESULT=migrate_all()
@@ -327,9 +328,29 @@ def territorial_hotspots_api(payload:dict):
     try:return hotspot(payload["points"],payload.get("value_key","value"),payload.get("method","lisa"),payload.get("bandwidth"))
     except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
 
+@app.post("/v1/territorial/network/build")
+def territorial_network_build(payload:dict):
+    try:return build_territorial_graph(payload["nodes"],payload.get("edges"),payload.get("proximity_m"))
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/territorial/network/shortest-path")
+def territorial_network_shortest_path(payload:dict):
+    try:return shortest_path(payload["graph"],str(payload["source"]),str(payload["target"]))
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
 @app.post("/v1/territorial/corridors/detect")
 def territorial_corridors_api(payload:dict):
-    try:return {"corridors":detect_corridors(payload["points"],float(payload["distance_threshold"]),payload.get("period"),payload.get("data_sources"))}
+    try:
+        # Backward-compatible geographic threshold mode remains available.
+        if "distance_threshold" in payload and "proximity_m" not in payload:
+            return {"corridors":detect_corridors(payload["points"],float(payload["distance_threshold"]),payload.get("period"),payload.get("data_sources")),
+                    "methodology":{"legacy":True,"causal_claims":False}}
+        return detect_network_corridors(
+            payload.get("nodes") or payload["points"],payload.get("edges"),
+            float(payload.get("proximity_m",5000)),payload.get("bandwidth_m"),int(payload.get("min_nodes",3)),
+            float(payload.get("temporal_weight",.15)),float(payload.get("density_weight",.30)),
+            float(payload.get("connectivity_weight",.35)),float(payload.get("continuity_weight",.20)),
+            int(payload.get("permutations",99)))
     except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
 
 @app.post("/v1/earth-observation/process")
@@ -693,7 +714,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["socio_ecological_spatialization","territorial_snapshots","geodata_catalog","data_lineage","spatial_events","territorial_indicators","gini_concentration","spatial_correlation","territorial_distance_model","corridor_candidates","raster_processing","remote_cog_window","cloud_masking","spectral_indices","zonal_statistics","eo_territorial_intelligence","euclidean_intelligence","euclidean_baseline_distance","earth_observation_stac","sentinel_2","landsat","modis","spectral_index_planning","territorial_scene_search","data_quality_engine","geometry_quality","coordinate_validation","quality_gate","permutation_lisa","significant_hotspots","spatial_density","spatial_outliers","incident_management","territorial_intelligence_briefs","incident_ownership","acknowledgement","investigation_timeline","operations_center","territorial_watchlists","alert_rules","alert_deduplication","alert_escalation","alert_resolution","territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["socio_ecological_spatialization","territorial_snapshots","geodata_catalog","data_lineage","spatial_events","territorial_indicators","gini_concentration","spatial_correlation","territorial_distance_model","corridor_candidates","territorial_network_graph","network_centrality","shortest_path","validated_corridor_detection","raster_processing","remote_cog_window","cloud_masking","spectral_indices","zonal_statistics","eo_territorial_intelligence","euclidean_intelligence","euclidean_baseline_distance","earth_observation_stac","sentinel_2","landsat","modis","spectral_index_planning","territorial_scene_search","data_quality_engine","geometry_quality","coordinate_validation","quality_gate","permutation_lisa","significant_hotspots","spatial_density","spatial_outliers","incident_management","territorial_intelligence_briefs","incident_ownership","acknowledgement","investigation_timeline","operations_center","territorial_watchlists","alert_rules","alert_deduplication","alert_escalation","alert_resolution","territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
