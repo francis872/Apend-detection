@@ -17,7 +17,7 @@ def test_health_endpoint():
     assert r.status_code==200
     body=r.json()
     assert body["service"]=="Meridian"
-    assert body["version"]=="4.5.0"
+    assert body["version"]=="4.6.0"
     assert "migrations" in body
 
 
