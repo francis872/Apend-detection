@@ -25,6 +25,7 @@ from .detector import detect_outliers
 from .domains import get_domain_pack, list_domain_packs, configure_domain
 from .intelligence import build_intelligence
 from .semantics import semantic_contract, apply_contract
+from .automation import build_autopilot_plan
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
 from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms, fetch_firms_area, sample_weather_enrichment
@@ -32,7 +33,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="1.3.0"
+VERSION="1.4.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -116,6 +117,9 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         gdf=source_gdf.copy() if source_gdf is not None else load_and_append(inputs)
         if gdf.crs is None: raise ValueError("Dataset has no CRS. Define the source CRS before analysis.")
         if len(gdf)<30: raise ValueError("Dataset is too small; at least 30 valid records are required.")
+        autopilot=build_autopilot_plan(gdf,domain)
+        if domain in ("","auto",None): domain=autopilot["selected_domain"]
+        if not autopilot["ready"]: raise ValueError("Autopilot blocked analysis: "+"; ".join(autopilot["blockers"]))
         pack=get_domain_pack(domain)
         contract=semantic_contract(gdf,pack)
         gdf,semantic_aliases=apply_contract(gdf,contract)
@@ -123,6 +127,7 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         profile=configure_domain(domain,numeric,probability_feature,variables,weights)
         profile["data_contract"]=contract
         profile["semantic_aliases"]=semantic_aliases
+        profile["autopilot"]=autopilot
         probability_feature=profile["probability_feature"]
         variables=profile["variables"]
         weights=profile["weights"]
@@ -204,6 +209,13 @@ def domain(domain_id:str):
     try:return get_domain_pack(domain_id)
     except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
 
+@app.post("/v1/autopilot/plan")
+def autopilot_plan(domain:str="auto", columns:str=""):
+    cols=[x.strip() for x in columns.split(",") if x.strip()]
+    preview=pd.DataFrame({x:pd.Series([1.0]*30) for x in cols})
+    try:return build_autopilot_plan(preview,domain)
+    except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
+
 @app.post("/v1/semantic/contract")
 def semantic_contract_endpoint(domain_id:str="general", columns:str=""):
     """Preview a semantic contract from column names when full source inspection is not required."""
@@ -221,7 +233,7 @@ def configure_domain_endpoint(domain_id:str, columns:str="", probability_feature
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["autopilot","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
@@ -266,7 +278,7 @@ def live_firms_analyze(
 
 
 @app.post("/inspect")
-async def inspect(files:List[UploadFile]=File(...)):
+async def inspect(files:List[UploadFile]=File(...), domain:str=Form("auto")):
     job=RUNTIME/("_inspect_"+uuid.uuid4().hex); inputs=job/"input"; inputs.mkdir(parents=True)
     try:
         for i,f in enumerate(files):
@@ -275,17 +287,17 @@ async def inspect(files:List[UploadFile]=File(...)):
             dest=inputs/f"s{i}";dest.mkdir();_safe_extract(zp,dest)
         gdf=load_and_append(inputs)
         numeric=[c for c in gdf.columns if c!="geometry" and pd.to_numeric(gdf[c],errors="coerce").notna().sum()>=30]
-        domain_id="general"
-        contract=semantic_contract(gdf,get_domain_pack(domain_id))
+        plan=build_autopilot_plan(gdf,domain)
+        contract=plan["data_contract"]
         return {"rows":len(gdf),"crs":str(gdf.crs) if gdf.crs else None,"numeric_variables":numeric,
-                "data_contract":contract,"valid":bool(gdf.crs and len(gdf)>=30)}
+                "data_contract":contract,"autopilot":plan,"valid":bool(gdf.crs and len(gdf)>=30 and plan["ready"])}
     except Exception as e: raise HTTPException(422,str(e))
     finally: shutil.rmtree(job,ignore_errors=True)
 
 
 @app.post("/analyze")
 async def analyze(files:List[UploadFile]=File(...), probability_feature:str=Form("FRP"),
-    variables:str=Form(""), domain:str=Form("general"), noise_level:int=Form(99), quadrature_order:int=Form(48),
+    variables:str=Form(""), domain:str=Form("auto"), noise_level:int=Form(99), quadrature_order:int=Form(48),
     weights_json:str=Form("")):
     if noise_level not in (90,95,99): raise HTTPException(400,"noise_level must be 90, 95 or 99")
     try: weights=json.loads(weights_json) if weights_json else None
