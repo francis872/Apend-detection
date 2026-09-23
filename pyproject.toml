@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "geo-outliers"
-version = "2.4.0"
+version = "2.5.0"
 description = "Meridian multi-industry Geospatial Intelligence Engine for detecting where, when and why territories behave differently"
 requires-python = ">=3.10"
 dependencies = [
