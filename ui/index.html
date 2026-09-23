@@ -1,47 +1,52 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Apend Detection 1.1</title>
+<title>Meridian · Geospatial Intelligence</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-:root{--bg:#07100e;--card:#0f1c19;--line:#20332e;--txt:#edf7f3;--muted:#8da49d;--a:#5ee7b0;--b:#8fb9ff}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px Inter,system-ui,sans-serif}main{max-width:1450px;margin:auto;padding:26px}
+:root{--bg:#07100e;--card:#0f1c19;--line:#20332e;--txt:#edf7f3;--muted:#8da49d;--a:#5ee7b0;--b:#8fb9ff;--side:#091411}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px Inter,system-ui,sans-serif}.shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}.sidebar{position:sticky;top:0;height:100vh;background:var(--side);border-right:1px solid var(--line);padding:24px 16px}.brand{font-size:22px;font-weight:900;letter-spacing:.04em}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:.16em;margin-top:4px}.nav{margin-top:30px}.nav a{display:block;color:var(--muted);text-decoration:none;padding:9px 10px;border-radius:9px;margin:3px 0}.nav a:hover,.nav a.active{background:#12231f;color:var(--txt)}.navLabel{font-size:10px;color:#60756e;letter-spacing:.14em;margin:20px 10px 7px}.workspace{min-width:0}main{max-width:1450px;margin:auto;padding:26px}
 .top,.head,.actions{display:flex;justify-content:space-between;gap:12px;align-items:center}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:14px}
 h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;font-size:11px}.muted,.k{color:var(--muted)}button,.upload,select,input{border:1px solid var(--line);background:#12231f;color:var(--txt);padding:9px 12px;border-radius:10px}.upload{background:var(--a);color:#07100e;font-weight:800;cursor:pointer}#file{display:none}
 .grid{display:grid;gap:12px}.stats{grid-template-columns:repeat(5,1fr)}.charts{grid-template-columns:1fr 1fr}.v{font-size:24px;font-weight:800;margin-top:5px}.chart{height:300px}.chartNote{font-size:11px;color:var(--muted);margin-top:6px}
 #map{height:520px;border-radius:12px}.mapLegend{background:#0f1c19;color:#edf7f3;padding:10px 12px;border-radius:10px;border:1px solid #20332e;line-height:1.7;box-shadow:0 4px 18px rgba(0,0,0,.25)}.mapLegend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;border:1px solid rgba(255,255,255,.55)}.mapStats{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mapStat{padding:7px 10px;border:1px solid var(--line);background:#091411;border-radius:10px;font-size:12px}.progress{height:12px;background:#091411;border-radius:8px;overflow:hidden}.bar{height:100%;width:0;background:var(--a);transition:.3s}
 .weights{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.weights input{width:100%}.table{overflow:auto;max-height:430px}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{color:var(--muted)}
 .filters{display:flex;gap:8px;flex-wrap:wrap}.downloads a{color:var(--a);margin-right:12px}.compare{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.pill{background:#091411;padding:10px;border-radius:10px;border:1px solid var(--line)}
-@media(max-width:900px){.stats,.charts,.weights,.compare{grid-template-columns:1fr 1fr}}@media(max-width:600px){.stats,.charts,.weights,.compare{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
-</style></head><body><main>
-<div class="top"><div><div class="eyebrow">GEOSPATIAL STATISTICAL INTELLIGENCE</div><h1>Apend Detection 1.1</h1><div class="muted">Probability · Quadrature · Derivatives · SPD · Procrustes · Spatial · Temporal</div></div>
+@media(max-width:900px){.shell{grid-template-columns:1fr}.sidebar{display:none}.stats,.charts,.weights,.compare{grid-template-columns:1fr 1fr}}@media(max-width:600px){.stats,.charts,.weights,.compare{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
+</style></head><body><div class="shell"><aside class="sidebar"><div class="brand">MERIDIAN<small>GEOSPATIAL INTELLIGENCE</small></div><nav class="nav">
+<a class="active" href="#overview">Overview</a>
+<div class="navLabel">DATA</div><a href="#source">Nueva fuente</a><a href="#live">Live APIs</a>
+<div class="navLabel">ANALYSIS</div><a href="#detect">Detect</a><a href="#probability">Probability</a><a href="#compare">Compare</a>
+<div class="navLabel">RESULTS</div><a href="#mapSection">Map</a><a href="#anomalies">Anomalies</a><a href="#exports">Report & Export</a>
+</nav></aside><div class="workspace"><main id="overview">
+<div class="top"><div><div class="eyebrow">INTELLIGENCE WORKSPACE</div><h1>Meridian</h1><div class="muted">Detect · Explore · Compare · Explain · Report</div></div>
 <div class="actions"><label class="upload">Seleccionar ZIP<input id="file" type="file" accept=".zip" multiple></label><button id="inspect" disabled>Inspeccionar</button><button id="run" disabled>Ejecutar</button></div></div>
 
-<section class="card"><div class="head"><div><b>Configuración</b><div class="k">Selecciona uno o más ZIP Shapefile. La inspección comienza automáticamente.</div></div><div><select id="mode"><option value="default">Default</option><option value="advanced">Advanced</option></select></div></div>
+<section class="card" id="source"><div class="head"><div><b>1 · Data source</b><div class="k">Selecciona uno o más ZIP Shapefile. La inspección comienza automáticamente.</div></div><div><select id="mode"><option value="default">Default</option><option value="advanced">Advanced</option></select></div></div>
 <div id="selectedFiles" class="k" style="margin-top:10px">Ningún archivo seleccionado.</div><div class="actions" style="justify-content:flex-start;margin-top:10px"><label><input type="checkbox" id="autoRun" checked> Analizar automáticamente después de inspeccionar</label><label>Variable principal <select id="variable"><option>FRP</option></select></label><label>Comparar <select id="compareVars" multiple size="4"></select></label></div>
 <div class="weights" id="weights" style="display:none;margin-top:12px"></div></section>
 
-<section class="card"><div class="head"><b id="stage">Listo</b><span id="pct">0%</span></div><div class="progress"><div class="bar" id="bar"></div></div><div class="k" id="status">Selecciona los archivos y pulsa Inspeccionar.</div></section>
+<section class="card" id="detect"><div class="head"><div><b>2 · Detection engine</b><div class="k">Meridian valida, modela y explica las anomalías.</div></div><div><b id="stage">Listo</b> · <span id="pct">0%</span></div></div><div class="progress"><div class="bar" id="bar"></div></div><div class="k" id="status">Selecciona los archivos y pulsa Inspeccionar.</div></section>
 
 <section class="grid stats">
 <div class="card"><div class="k">Observaciones</div><div class="v" id="rows">—</div></div><div class="card"><div class="k">Mejor ajuste comparativo</div><div class="v" id="best">—</div></div>
 <div class="card"><div class="k">Outliers 99%</div><div class="v" id="o99">—</div></div><div class="card"><div class="k">Ruido probable</div><div class="v" id="noise">—</div></div><div class="card"><div class="k">Tiempo</div><div class="v" id="elapsed">—</div></div>
 </section>
 
-<section class="grid charts">
+<section class="grid charts" id="probability">
 <div class="card"><b>Histograma + PDF + áreas 90/95/99</b><div class="chart"><canvas id="pdfChart"></canvas></div></div>
 <div class="card"><b>Primera derivada f′(x)</b><div class="chart"><canvas id="d1Chart"></canvas></div></div>
 <div class="card"><b>Segunda derivada f″(x) · puntos de inflexión</b><div class="chart"><canvas id="d2Chart"></canvas></div><div class="k" id="infl"></div></div>
-<div class="card"><b>Niveles de anomalía · 90 / 95 / 99</b><div class="chart"><canvas id="levelChart"></canvas></div></div><div class="card"><b>Comparación entre variables</b><div class="k" id="analysisCoverage">Esperando análisis completo…</div><div id="comparison" class="compare"></div></div>
+<div class="card"><b>Niveles de anomalía · 90 / 95 / 99</b><div class="chart"><canvas id="levelChart"></canvas></div></div><div class="card" id="compare"><b>Comparación entre variables</b><div class="k" id="analysisCoverage">Esperando análisis completo…</div><div id="comparison" class="compare"></div></div>
 </section>
 
-<section class="card"><div class="head"><div><b>Mapa interactivo</b><div class="k">Normal · 90 · 95 · 99 · probable_noise</div></div><div class="filters">
+<section class="card" id="mapSection"><div class="head"><div><b>3 · Explore map</b><div class="k">Normal · Elevated 90 · High 95 · Critical 99 · Possible data error</div></div><div class="filters">
 <label><input type="checkbox" class="mf" value="normal" checked> Normal</label><label><input type="checkbox" class="mf" value="90" checked> 90%</label><label><input type="checkbox" class="mf" value="95" checked> 95%</label><label><input type="checkbox" class="mf" value="99" checked> 99%</label><label><input type="checkbox" id="noiseOnly"> Solo ruido</label></div></div><div class="mapStats"><span class="mapStat" id="mNormal">Normal: —</span><span class="mapStat" id="m90">90%: —</span><span class="mapStat" id="m95">95%: —</span><span class="mapStat" id="m99">99%: —</span><span class="mapStat" id="mNoise">Ruido: —</span></div><div id="map"></div></section>
 
-<section class="card"><div class="head"><div><b>Anomalías explicables</b><div class="k">Top 1000 por score total</div></div></div><div class="table"><table><thead><tr><th>ID</th><th>Score</th><th>Tail p</th><th>Mahalanobis</th><th>Prob.</th><th>SPD</th><th>Procrustes</th><th>Spatial</th><th>Temporal</th><th>Dist. inflexión</th><th>Consenso</th><th>Razón</th><th>Estado</th></tr></thead><tbody id="anomalyRows"></tbody></table></div></section>
+<section class="card" id="anomalies"><div class="head"><div><b>4 · Explain anomalies</b><div class="k">Top 1000 por score total</div></div></div><div class="table"><table><thead><tr><th>ID</th><th>Score</th><th>Tail p</th><th>Mahalanobis</th><th>Prob.</th><th>SPD</th><th>Procrustes</th><th>Spatial</th><th>Temporal</th><th>Dist. inflexión</th><th>Consenso</th><th>Razón</th><th>Estado</th></tr></thead><tbody id="anomalyRows"></tbody></table></div></section>
 
-<section class="card"><div class="head"><div><b>APIs reales</b><div class="k">NASA FIRMS puede alimentar directamente el mismo motor matemático. Open-Meteo añade contexto meteorológico real.</div></div><button id="checkApis">Comprobar APIs</button></div>
+<section class="card" id="live"><div class="head"><div><b>Live data connections</b><div class="k">NASA FIRMS puede alimentar directamente el mismo motor matemático. Open-Meteo añade contexto meteorológico real.</div></div><button id="checkApis">Comprobar APIs</button></div>
 <div id="apiStatus" class="compare" style="margin-top:10px"></div>
 <div class="actions" style="justify-content:flex-start;flex-wrap:wrap;margin-top:12px">
 <label>Oeste <input id="firmsWest" type="number" step=".1" value="-79"></label>
@@ -51,7 +56,7 @@ h1{margin:4px 0}.eyebrow{color:var(--a);font-weight:800;letter-spacing:.12em;fon
 <label>Días <input id="firmsDays" type="number" min="1" max="5" value="1"></label>
 <label>Producto <select id="firmsSource"><option>VIIRS_NOAA21_NRT</option><option>VIIRS_NOAA20_NRT</option><option>VIIRS_SNPP_NRT</option><option>MODIS_NRT</option></select></label>
 <button id="runFirms">Analizar NASA FIRMS en vivo</button>
-</div><div class="k" id="liveStatus" style="margin-top:8px">Área inicial: Colombia aproximada. Requiere NASA_FIRMS_MAP_KEY.</div></section><section class="card"><b>Descargas</b><div class="downloads" id="downloads"></div></section>
+</div><div class="k" id="liveStatus" style="margin-top:8px">Área inicial: Colombia aproximada. Requiere NASA_FIRMS_MAP_KEY.</div></section><section class="card" id="exports"><b>5 · Report & Export</b><div class="downloads" id="downloads"></div></section>
 </main><script>
 const $=id=>document.getElementById(id),fmt=n=>Number.isFinite(+n)?(+n).toLocaleString('es-CO',{maximumFractionDigits:4}):'—';
 let charts=[],map=L.map('map').setView([4.6,-74.1],5),layer=L.layerGroup().addTo(map),mapData=[];
@@ -305,10 +310,10 @@ $('runFirms').onclick=async()=>{
     const r=await fetch('/live/firms/analyze',{method:'POST',body:fd});
     const j=await r.json();
     if(!r.ok)throw new Error(j.detail||('HTTP '+r.status));
-    $('liveStatus').textContent='NASA FIRMS entregó '+fmt(j.rows)+' observaciones. Ejecutando motor Apend…';
+    $('liveStatus').textContent='NASA FIRMS entregó '+fmt(j.rows)+' observaciones. Ejecutando motor Meridian…';
     poll(j.job_id);
   }catch(e){
     $('stage').textContent='error';$('status').textContent='NASA FIRMS: '+e.message;$('liveStatus').textContent=e.message;
   }finally{$('runFirms').disabled=false}
 };
-</script></body></html>
+</script></main></div></div></body></html>
