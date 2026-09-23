@@ -213,8 +213,16 @@ async function inspectSelected(){
     $('stage').textContent='inspected';$('bar').style.width='100%';$('pct').textContent='100%';
     $('status').textContent='Source validated · '+j.rows+' records · CRS '+(j.crs||'unknown')+' · '+j.numeric_variables.length+' numeric variables.';
     $('variableCount').textContent=j.numeric_variables.length+' variables';
+    if(j.data_contract){
+      const dc=j.data_contract;
+      $('contractPanel').innerHTML='<b>Semantic Data Contract</b><p class="k">'+(dc.ready?'Ready for analysis':'Review required')+' · '+dc.mappings.length+' mappings · '+dc.measures.length+' numeric measures</p>'+
+      '<div>'+dc.mappings.slice(0,12).map(m=>'<span class="methodTag">'+m.column+' → '+m.semantic+' · '+Math.round(m.confidence*100)+'%</span>').join('')+'</div>'+
+      (dc.issues.length?'<p class="k">Issues: '+dc.issues.join(' · ')+'</p>':'');
+    }
     if($('domain')&&$('domain').value!=='general'){
       try{
+        const cr=await fetch('/v1/semantic/contract?domain_id='+encodeURIComponent($('domain').value)+'&columns='+encodeURIComponent(j.numeric_variables.join(',')),{method:'POST'});
+        if(cr.ok){const dc=await cr.json();$('contractPanel').innerHTML='<b>'+($('domain').selectedOptions[0]?.textContent||'Domain')+' Data Contract</b><p class="k">'+dc.mappings.length+' semantic mappings · '+dc.measures.length+' measures</p><div>'+dc.mappings.slice(0,12).map(m=>'<span class="methodTag">'+m.column+' → '+m.semantic+' · '+Math.round(m.confidence*100)+'%</span>').join('')+'</div>';}
         const pr=await fetch('/v1/domains/'+$('domain').value+'/configure?columns='+encodeURIComponent(j.numeric_variables.join(','))+'&probability_feature='+encodeURIComponent($('variable').value),{method:'POST'});
         if(pr.ok){const dp=await pr.json(); if(dp.probability_feature&&j.numeric_variables.includes(dp.probability_feature))$('variable').value=dp.probability_feature; [...$('compareVars').options].forEach(o=>o.selected=dp.variables.includes(o.value)); $('domainHint').textContent=dp.pack.name+' · matched '+(dp.matched_variables.join(', ')||'generic numeric variables')+' · governance '+dp.governance;}
       }catch{}
@@ -294,7 +302,11 @@ async function poll(id){
 function killCharts(){charts.forEach(c=>c.destroy());charts=[]}
 function render(j){
   let s=j.summary.detector;
-  if(j.domain_profile&&$('domainHint')) $('domainHint').textContent=j.domain_profile.pack.name+' · '+j.domain_profile.matched_variables.length+' domain variables matched · governance '+j.domain_profile.governance;
+  if(j.domain_profile&&$('domainHint')) {
+    $('domainHint').textContent=j.domain_profile.pack.name+' · '+j.domain_profile.matched_variables.length+' domain variables matched · governance '+j.domain_profile.governance;
+    const dc=j.domain_profile.data_contract;
+    if(dc&&$('contractPanel')) $('contractPanel').innerHTML='<b>Executed Data Contract</b><p class="k">'+dc.domain+' · '+dc.mappings.length+' mappings · '+dc.measures.length+' measures · '+(dc.ready?'ready':'review')+'</p><div>'+dc.mappings.slice(0,12).map(m=>'<span class="methodTag">'+m.column+' → '+m.semantic+' · '+Math.round(m.confidence*100)+'%</span>').join('')+'</div>';
+  }
   $('rows').textContent=fmt(s.rows);
   $('best').textContent=s.best_distribution.toUpperCase();
   $('o99').textContent=fmt(s.counts['99']);
