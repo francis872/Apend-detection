@@ -313,6 +313,8 @@ function render(j){
   if(j.domain_profile&&$('domainHint')) {
     $('domainHint').textContent=j.domain_profile.pack.name+' · '+j.domain_profile.matched_variables.length+' domain variables matched · governance '+j.domain_profile.governance;
     const dc=j.domain_profile.data_contract;
+    const ep=j.domain_profile.enrichment_plan;
+    if(ep&&$('enrichmentPanel')) $('enrichmentPanel').innerHTML='<b>Auto-Enrichment Plan</b><p class="k">'+ep.domain+' · policy '+ep.policy+' · score mutation '+ep.score_mutation+'</p><div>'+ep.actions.map(a=>'<span class="methodTag">'+a.provider+' · '+(a.recommended?'recommended':'not needed')+' · '+(a.configured?'ready':'not configured')+'</span>').join('')+'</div>'+(ep.warnings.length?'<p class="k">'+ep.warnings.join(' · ')+'</p>':'');
     if(dc&&$('contractPanel')) $('contractPanel').innerHTML='<b>Executed Data Contract</b><p class="k">'+dc.domain+' · '+dc.mappings.length+' mappings · '+dc.measures.length+' measures · '+(dc.ready?'ready':'review')+'</p><div>'+dc.mappings.slice(0,12).map(m=>'<span class="methodTag">'+m.column+' → '+m.semantic+' · '+Math.round(m.confidence*100)+'%</span>').join('')+'</div>';
   }
   $('rows').textContent=fmt(s.rows);
@@ -392,6 +394,8 @@ function render(j){
   const tc=$('temporalChart');
   if(tc&&tseries.length) charts.push(new Chart(tc,{type:'line',data:{labels:tseries.map(x=>x.timestamp),datasets:[{label:'Hourly mean',data:tseries.map(x=>x.mean),pointRadius:0,borderWidth:2,borderColor:'#c7b5cf'}]},options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:'#cfe0da'}}},scales:{x:{ticks:{color:'#8da49d',maxTicksLimit:8}},y:{ticks:{color:'#8da49d'}}}}}));
   $('changePoints').innerHTML=(tv.change_points||[]).slice(0,8).map(x=>'<div class="pill"><b>'+x.timestamp+'</b><br><span class="k">Value '+fmt(x.value)+' · robust score '+fmt(x.score)+'</span></div>').join('')||'<div class="pill">No strong temporal change candidates.</div>';
+  const ae=(s.external_context||{}).auto_enrichment;
+  if(ae&&$('enrichmentPanel')) $('enrichmentPanel').innerHTML='<b>Auto-Enrichment Evidence</b><p class="k">'+ae.provenance_note+'</p><div>'+ae.results.map(r=>'<span class="methodTag">'+r.provider+' · '+r.status+'</span>').join('')+'</div>';
   $('insightFeed').innerHTML=(j.intelligence_feed||[]).map(x=>'<div class="pill"><span class="methodTag">'+x.severity.toUpperCase()+'</span><br><b>'+x.title+'</b><p class="k">'+x.detail+'</p></div>').join('')||'<div class="pill">No high-priority findings generated.</div>';
   $('downloads').innerHTML=Object.entries(j.outputs).map(([k,v])=>'<a href="'+v+'">'+k+'</a>').join('');
   setTimeout(loadHistory,400);
