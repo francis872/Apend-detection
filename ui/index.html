@@ -43,7 +43,7 @@ h1{margin:4px 0;font-size:28px;font-weight:500;letter-spacing:-.02em}.eyebrow{co
 </div>
 
 <div class="top"><div><div class="eyebrow">GEOSPATIAL INTELLIGENCE WORKSPACE</div><h1 id="greeting">Welcome to Meridian.</h1><div class="muted">Geospatial intelligence for a more livable planet.</div></div>
-<div class="actions"><label class="upload">+ New Source<input id="file" type="file" accept=".zip" multiple></label><button id="inspect" disabled>Inspect</button><button id="run" disabled>Start Analysis</button></div></div>
+<div class="actions"><label class="upload">+ New Source<input id="file" type="file" accept=".zip,.gpkg,.geojson,.json,.csv,.xlsx,.xls,.parquet" multiple></label><button id="inspect" disabled>Inspect</button><button id="run" disabled>Start Analysis</button></div></div>
 
 <section class="card" id="source"><div class="head"><div><b>1 · Data source</b><div class="k">Selecciona uno o más ZIP Shapefile. La inspección comienza automáticamente.</div></div><div><select id="mode"><option value="default">Default</option><option value="advanced">Advanced</option></select></div></div>
 <div id="selectedFiles" class="k" style="margin-top:10px">Ningún archivo seleccionado.</div><div class="actions" style="justify-content:flex-start;margin-top:10px"><label><input type="checkbox" id="autoRun" checked> Analizar automáticamente después de inspeccionar</label><label>Variable principal <select id="variable"><option>FRP</option></select></label><label>Comparar <select id="compareVars" multiple size="4"></select></label></div>
@@ -205,7 +205,7 @@ async function inspectSelected(){
   $('bar').style.width='0%';$('pct').textContent='0%';
   try{
     const j=await postWithProgress('/inspect',formFiles(),p=>{
-      $('bar').style.width=p+'%';$('pct').textContent=p+'%';$('status').textContent='Subiendo ZIP… '+p+'%';
+      $('bar').style.width=p+'%';$('pct').textContent=p+'%';$('status').textContent='Ingesting source… '+p+'%';
     });
     $('variable').innerHTML=j.numeric_variables.map(v=>'<option>'+v+'</option>').join('');
     $('compareVars').innerHTML=j.numeric_variables.map(v=>'<option selected>'+v+'</option>').join('');
@@ -248,8 +248,8 @@ async function inspectSelected(){
 
 $('file').addEventListener('change',()=>{
   const fs=[...$('file').files];
-  $('selectedFiles').innerHTML=fs.length?'<b>Selected:</b> '+fs.map(f=>f.name+' ('+humanSize(f.size)+')').join(' · '):'No source selected.';
-  if(fs.length){$('activeDataset').textContent=fs.length===1?fs[0].name:fs.length+' files';$('datasetMeta').textContent='Local geospatial source';addActivity('New data source selected',$('activeDataset').textContent)}
+  $('selectedFiles').innerHTML=fs.length?'<b>Selected:</b> '+fs.map(f=>f.name+' ('+humanSize(f.size)+')').join(' · '):'No source selected. Supported: ZIP Shapefile, GeoPackage, GeoJSON, JSON, CSV, Excel and Parquet.';
+  if(fs.length){$('activeDataset').textContent=fs.length===1?fs[0].name:fs.length+' files';$('datasetMeta').textContent='Universal geospatial source';addActivity('New data source selected',$('activeDataset').textContent)}
   $('inspect').disabled=!fs.length;
   $('run').disabled=true;
   if(fs.length)inspectSelected();
