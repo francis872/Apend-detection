@@ -48,6 +48,19 @@ def _connect():
       evidence_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS territorial_monitoring(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      object_key TEXT NOT NULL,
+      object_version INTEGER NOT NULL,
+      job_id TEXT NOT NULL,
+      summary_json TEXT NOT NULL,
+      baseline_json TEXT,
+      change_json TEXT,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(object_key,job_id)
+    )""")
+    con.execute("""CREATE INDEX IF NOT EXISTS idx_monitoring_object ON territorial_monitoring(object_key,id)""")
     return con
 
 
@@ -223,3 +236,104 @@ def list_territorial_alerts(object_key:str|None=None,limit:int=200)->list[dict]:
     for r in rows:
         d=dict(r); d["evidence"]=json.loads(d.pop("evidence_json")); out.append(d)
     return out
+
+
+def _monitor_row(r):
+    d=dict(r)
+    for key in ("summary_json","baseline_json","change_json"):
+        raw=d.pop(key)
+        d[key.replace("_json","")]=json.loads(raw) if raw else None
+    return d
+
+
+def monitoring_history(object_key:str,limit:int=100)->list[dict]:
+    with _connect() as con:
+        rows=con.execute("SELECT * FROM territorial_monitoring WHERE object_key=? ORDER BY id DESC LIMIT ?",(object_key,min(max(limit,1),500))).fetchall()
+    return [_monitor_row(r) for r in rows]
+
+
+def _baseline_from_history(history:list[dict],window:int=8)->dict|None:
+    if len(history)<3:return None
+    rows=history[:window]
+    keys=("rows","critical_99","high_95","elevated_90","mean_score","mean_probability","mean_spatial","mean_temporal","consensus_mean")
+    out={}
+    for key in keys:
+        vals=[]
+        for r in rows:
+            v=(r.get("summary") or {}).get(key)
+            if isinstance(v,(int,float)) and np.isfinite(v): vals.append(float(v))
+        if vals:
+            out[key]={"median":float(np.median(vals)),"mad":float(np.median(np.abs(np.asarray(vals)-np.median(vals))))}
+    return out or None
+
+
+def _change_against_baseline(summary:dict,baseline:dict|None)->dict:
+    if not baseline:return {"status":"baseline_building","signals":[],"score":0.0}
+    signals=[]; scores=[]
+    for key,stats_ in baseline.items():
+        value=summary.get(key)
+        if not isinstance(value,(int,float)) or not np.isfinite(value):continue
+        median=float(stats_["median"]); mad=float(stats_.get("mad") or 0)
+        scale=max(1.4826*mad,abs(median)*.10,0.05 if key.startswith("mean_") or key=="consensus_mean" else 1.0)
+        deviation=abs(float(value)-median)/scale
+        scores.append(min(deviation/5.0,1.0))
+        if deviation>=3.5:
+            signals.append({"metric":key,"current":float(value),"baseline":median,"robust_deviation":float(deviation),
+                            "direction":"up" if float(value)>median else "down"})
+    return {"status":"changed" if signals else "stable","signals":signals,"score":float(np.mean(scores)) if scores else 0.0}
+
+
+def monitor_object(job_dir:Path,obj:dict,baseline_window:int=8)->dict:
+    gdf=load_analysis_layer(job_dir)
+    selected=select_polygon(gdf,obj["geometry"])
+    summary=summarize_region(selected)
+    history=monitoring_history(obj["object_key"],limit=baseline_window)
+    baseline=_baseline_from_history(history,baseline_window)
+    change=_change_against_baseline(summary,baseline)
+    now=datetime.now(timezone.utc).isoformat()
+
+    with _connect() as con:
+        con.execute("""INSERT OR REPLACE INTO territorial_monitoring(
+          object_key,object_version,job_id,summary_json,baseline_json,change_json,status,created_at
+        ) VALUES(?,?,?,?,?,?,?,?)""",
+        (obj["object_key"],int(obj["version"]),job_dir.name,json.dumps(summary),json.dumps(baseline) if baseline else None,
+         json.dumps(change),change["status"],now))
+
+        if change["status"]=="changed":
+            for sig in change["signals"]:
+                severity="critical" if sig["robust_deviation"]>=5 else "high"
+                title=f"{obj['name']} changed: {sig['metric']} {sig['direction']}"
+                evidence={"metric":sig["metric"],"current":sig["current"],"baseline":sig["baseline"],
+                          "robust_deviation":sig["robust_deviation"],"object_version":obj["version"]}
+                con.execute("INSERT INTO territorial_alerts(object_key,job_id,severity,alert_type,title,evidence_json,created_at) VALUES(?,?,?,?,?,?,?)",
+                            (obj["object_key"],job_dir.name,severity,"territorial_change",title,json.dumps(evidence),now))
+
+    return {"object_key":obj["object_key"],"object_version":obj["version"],"job_id":job_dir.name,
+            "summary":summary,"baseline":baseline,"change":change,"status":change["status"],"created_at":now}
+
+
+def monitor_all_objects(job_dir:Path)->dict:
+    objects=list_territorial_objects(True,500)
+    results=[]
+    for obj in objects:
+        try:results.append(monitor_object(job_dir,obj))
+        except Exception as e:
+            results.append({"object_key":obj["object_key"],"job_id":job_dir.name,"status":"error","error":str(e)})
+    changed=sum(1 for x in results if x.get("status")=="changed")
+    return {"job_id":job_dir.name,"objects":len(objects),"changed":changed,"results":results}
+
+
+def territorial_monitoring_dashboard(object_key:str)->dict:
+    objects=[x for x in list_territorial_objects(False,500) if x["object_key"]==object_key]
+    if not objects: raise KeyError(object_key)
+    latest=objects[0]
+    history=monitoring_history(object_key,100)
+    alerts=list_territorial_alerts(object_key,100)
+    return {
+        "object":latest,
+        "history":history,
+        "alerts":alerts,
+        "baseline_state":"ready" if len(history)>=3 else "building",
+        "monitoring_runs":len(history),
+        "latest_change":history[0]["change"] if history else None,
+    }
