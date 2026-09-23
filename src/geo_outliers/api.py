@@ -22,7 +22,7 @@ from scipy import stats
 from .comparison import compare_variables
 from .derivatives import find_inflection_points
 from .detector import detect_outliers
-from .domains import get_domain_pack, list_domain_packs
+from .domains import get_domain_pack, list_domain_packs, configure_domain
 from .intelligence import build_intelligence
 from .exports import export_analysis
 from .io import load_and_append, basic_clean
@@ -105,7 +105,7 @@ def _table_rows(scored,limit=300):
     return out
 
 
-def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,quadrature_order,weights,input_hash,source_gdf=None,source_meta=None):
+def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,quadrature_order,weights,input_hash,source_gdf=None,source_meta=None,domain='general'):
     started=time.perf_counter()
     params={"probability_feature":probability_feature,"variables":variables,"noise_level":noise_level,
             "quadrature_order":quadrature_order,"weights":weights}
@@ -116,7 +116,11 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         if gdf.crs is None: raise ValueError("Dataset has no CRS. Define the source CRS before analysis.")
         if len(gdf)<30: raise ValueError("Dataset is too small; at least 30 valid records are required.")
         numeric=[c for c in gdf.columns if c!="geometry" and pd.to_numeric(gdf[c],errors="coerce").notna().sum()>=30]
-        if probability_feature not in numeric: raise ValueError(f"{probability_feature} is not a usable numeric variable")
+        profile=configure_domain(domain,numeric,probability_feature,variables,weights)
+        probability_feature=profile["probability_feature"]
+        variables=profile["variables"]
+        weights=profile["weights"]
+        if probability_feature not in numeric: raise ValueError("No usable numeric probability feature was found")
 
         _progress(job_id,20,"cleaning","Cleaning geometry, duplicates and invalid values")
         gdf,cleaning=basic_clean(gdf)
@@ -136,6 +140,7 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         chosen=[v for v in variables if v in numeric] or [probability_feature]
         comparison=compare_variables(gdf,chosen,coords,quadrature_order=min(24,quadrature_order),max_sample=10000)
         summary["variable_comparison"]=comparison
+        summary["domain_profile"]=profile
 
         _progress(job_id,78,"plots","Preparing PDF, derivatives, map and explainability table")
         vals=pd.to_numeric(scored[probability_feature],errors="coerce").dropna().to_numpy(float)
@@ -171,7 +176,7 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
           "numeric_variables":numeric,"comparison":comparison,"elapsed_seconds":elapsed,
           "analysis_status":{"numeric_detected":len(numeric),"variables_compared":len(comparison),
             "map_points":len(_map_points(scored,max_points=5000)),"anomaly_rows":len(_table_rows(scored,limit=300))},
-          "intelligence_feed":_intelligence_feed(summary)}
+          "domain_profile":profile,"intelligence_feed":_intelligence_feed(summary,domain)}
         
         (results/"response.json").write_text(json.dumps(payload,ensure_ascii=False),encoding="utf-8")
         save_analysis(job_id,"complete",input_hash=input_hash,probability_feature=probability_feature,
@@ -191,6 +196,12 @@ def domains(): return {"engine":"Meridian","version":VERSION,"domains":list_doma
 @app.get("/v1/domains/{domain_id}")
 def domain(domain_id:str):
     try:return get_domain_pack(domain_id)
+    except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
+
+@app.post("/v1/domains/{domain_id}/configure")
+def configure_domain_endpoint(domain_id:str, columns:str="", probability_feature:str=""):
+    numeric=[x.strip() for x in columns.split(",") if x.strip()]
+    try:return configure_domain(domain_id,numeric,probability_feature or None)
     except KeyError:raise HTTPException(404,"Unknown Meridian domain pack")
 
 @app.get("/v1/capabilities")
@@ -257,7 +268,7 @@ async def inspect(files:List[UploadFile]=File(...)):
 
 @app.post("/analyze")
 async def analyze(files:List[UploadFile]=File(...), probability_feature:str=Form("FRP"),
-    variables:str=Form(""), noise_level:int=Form(99), quadrature_order:int=Form(48),
+    variables:str=Form(""), domain:str=Form("general"), noise_level:int=Form(99), quadrature_order:int=Form(48),
     weights_json:str=Form("")):
     if noise_level not in (90,95,99): raise HTTPException(400,"noise_level must be 90, 95 or 99")
     try: weights=json.loads(weights_json) if weights_json else None
@@ -277,7 +288,7 @@ async def analyze(files:List[UploadFile]=File(...), probability_feature:str=Form
         raise HTTPException(422,str(e))
     input_hash=_hash_files(uploads)
     _progress(job_id,2,"queued","Analysis queued")
-    threading.Thread(target=_run_job,args=(job_id,inputs,results,probability_feature,selected,noise_level,quadrature_order,weights,input_hash),daemon=True).start()
+    threading.Thread(target=_run_job,args=(job_id,inputs,results,probability_feature,selected,noise_level,quadrature_order,weights,input_hash,None,None,domain),daemon=True).start()
     return {"job_id":job_id,"status":"queued","progress_url":f"/jobs/{job_id}/progress"}
 
 
