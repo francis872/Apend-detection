@@ -131,6 +131,10 @@ h1{margin:4px 0;font-size:28px;font-weight:500;letter-spacing:-.02em}.eyebrow{co
 <div style="display:flex;gap:6px;margin-bottom:8px"><input id="territoryProfileId" placeholder="Territory ID" style="min-width:0"><button id="loadTerritoryProfile">Load</button></div>
 <div id="territorialProfile" class="muted">Select or enter a territory to reconstruct its temporal feature vector.</div>
 <div id="territorialChange" style="margin-top:12px"></div>
+<h3 style="margin-top:18px">Spatial Statistics</h3>
+<div class="layerToggle"><button id="runGiStar">Gi* Hotspots</button><button id="runBivariateMoran">Bivariate Moran</button></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px"><input id="spatialVarX" placeholder="Variable X / value"><input id="spatialVarY" placeholder="Variable Y"></div>
+<div id="spatialStatsEvidence" class="muted" style="margin-top:8px">Load map observations, then run a spatial statistic.</div>
 <h3 style="margin-top:18px">Evidence</h3><div id="territorialEvidence" class="muted">Every analytical result keeps method, period, CRS, sources and limitations.</div></div></div></section>
 
 <section class="card moduleView" data-module-view="corridor-explorer" style="display:none">
@@ -617,4 +621,27 @@ async function loadTerritorialProfile(){
  }catch(e){box.textContent='Profile unavailable: '+e.message;}
 }
 document.getElementById('loadTerritoryProfile')?.addEventListener('click',loadTerritorialProfile);
+</script>
+<script>
+function meridianSpatialPoints(){
+ const pts=(window.currentResult?.map_points||window.currentResult?.map?.points||[]);
+ return pts.map(p=>({longitude:Number(p.lon??p.longitude),latitude:Number(p.lat??p.latitude),value:Number(p.score??p.value??0),spatial:Number(p.spatial??0),temporal:Number(p.temporal??0),probability:Number(p.probability??0),consensus:Number(p.consensus??0)})).filter(p=>Number.isFinite(p.longitude)&&Number.isFinite(p.latitude));
+}
+async function runGiStarUI(){
+ const points=meridianSpatialPoints(),box=document.getElementById('spatialStatsEvidence');if(points.length<5){box.textContent='At least 5 loaded map observations are required.';return;}
+ const key=document.getElementById('spatialVarX').value.trim()||'value';
+ try{const r=await fetch('/v1/spatial/hotspots/gi-star',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points,value_key:key,k:8,permutations:199})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Gi* failed');
+ const sig=d.records.filter(x=>x.significant),hot=sig.filter(x=>x.cluster==='HOTSPOT').length,cold=sig.filter(x=>x.cluster==='COLDSPOT').length;
+ box.innerHTML='<b>Getis-Ord Gi*</b><br>n '+d.n+' · k '+d.k+' · permutations '+d.permutations+'<br><span class="mapStat">Hotspots '+hot+'</span> <span class="mapStat">Coldspots '+cold+'</span><br><span class="muted">Local p-values are permutation-based and unadjusted. Concentration does not establish causality.</span>';
+ }catch(e){box.textContent=e.message;}
+}
+async function runBivariateUI(){
+ const points=meridianSpatialPoints(),box=document.getElementById('spatialStatsEvidence');if(points.length<5){box.textContent='At least 5 loaded map observations are required.';return;}
+ const x=document.getElementById('spatialVarX').value.trim()||'spatial',y=document.getElementById('spatialVarY').value.trim()||'temporal';
+ try{const r=await fetch('/v1/spatial/bivariate-moran',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points,x_key:x,y_key:y,k:8,permutations:199})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Bivariate Moran failed');
+ box.innerHTML='<b>Bivariate Moran\'s I</b><br>'+x+' → spatial lag of '+y+'<br><span class="mapStat">I '+Number(d.coefficient).toFixed(4)+'</span> <span class="mapStat">p '+Number(d.p_value).toFixed(4)+'</span><br>n '+d.n+' · permutations '+d.permutations+'<br><span class="muted">Spatial association is not evidence of causality.</span>';
+ }catch(e){box.textContent=e.message;}
+}
+document.getElementById('runGiStar')?.addEventListener('click',runGiStarUI);
+document.getElementById('runBivariateMoran')?.addEventListener('click',runBivariateUI);
 </script></body></html>
