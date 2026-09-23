@@ -36,9 +36,9 @@ from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms
 from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
-from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts
+from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts, monitor_object, monitor_all_objects, monitoring_history, territorial_monitoring_dashboard
 
-VERSION="2.3.0"
+VERSION="2.4.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -230,6 +230,9 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
         (results/"response.json").write_text(json.dumps(payload,ensure_ascii=False),encoding="utf-8")
         save_analysis(job_id,"complete",input_hash=input_hash,probability_feature=probability_feature,
           rows=len(scored),crs=str(gdf.crs),params=params,summary=summary,outputs=outputs,elapsed_seconds=elapsed)
+        territorial_monitoring=monitor_all_objects(results.parent)
+        summary["territorial_monitoring"]=territorial_monitoring
+        append_event(job_id,"territorial_monitoring_completed",stage="territorial_monitoring",payload={"objects":territorial_monitoring["objects"],"changed":territorial_monitoring["changed"]})
         append_event(job_id,"analysis_completed",stage="runtime",payload={"elapsed_seconds":elapsed,"rows":len(scored),"domain":domain})
         _progress(job_id,100,"complete",f"Analysis completed in {elapsed:.1f}s")
     except Exception as e:
@@ -244,6 +247,34 @@ def health():
     return {"status":"ok","service":"Meridian","version":VERSION,"event_store":event_stats(),"active_jobs":sum(1 for x in PROGRESS.values() if x.get("percent",100)<100)}
 
 
+
+
+@app.get("/v1/territorial/monitoring/{object_key}")
+def territorial_monitoring(object_key:str):
+    try:return territorial_monitoring_dashboard(object_key)
+    except KeyError:raise HTTPException(404,"Territorial object not found")
+
+@app.get("/v1/territorial/monitoring/{object_key}/history")
+def territorial_monitoring_history(object_key:str,limit:int=100):
+    return {"object_key":object_key,"history":monitoring_history(object_key,limit)}
+
+@app.post("/v1/territorial/monitoring/{object_key}/run/{job_id}")
+def territorial_monitoring_run(object_key:str,job_id:str):
+    objs=[x for x in list_territorial_objects(True,500) if x["object_key"]==object_key]
+    if not objs:raise HTTPException(404,"Territorial object not found")
+    try:
+        result=monitor_object(RUNTIME/job_id,objs[0])
+        append_event(job_id,"territorial_object_monitored",stage="territorial_monitoring",severity="warning" if result["status"]=="changed" else "info",payload={"object_key":object_key,"status":result["status"],"change":result["change"]})
+        return result
+    except FileNotFoundError as e:raise HTTPException(404,str(e))
+
+@app.post("/v1/territorial/monitoring/run/{job_id}")
+def territorial_monitoring_run_all(job_id:str):
+    try:
+        result=monitor_all_objects(RUNTIME/job_id)
+        append_event(job_id,"territorial_monitoring_completed",stage="territorial_monitoring",payload={"objects":result["objects"],"changed":result["changed"]})
+        return result
+    except FileNotFoundError as e:raise HTTPException(404,str(e))
 
 @app.get("/v1/territorial/objects")
 def territorial_objects(active_only:bool=True,limit:int=200):
@@ -420,7 +451,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
