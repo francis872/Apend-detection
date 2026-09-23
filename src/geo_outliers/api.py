@@ -36,9 +36,9 @@ from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms
 from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
-from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts, monitor_object, monitor_all_objects, monitoring_history, territorial_monitoring_dashboard
+from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts, monitor_object, monitor_all_objects, monitoring_history, territorial_monitoring_dashboard, create_watchlist, list_watchlists, subscribe_object, create_alert_rule, list_alert_rules, process_watchlist_alerts, list_incidents, operations_center
 
-VERSION="2.4.0"
+VERSION="2.5.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -232,6 +232,9 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
           rows=len(scored),crs=str(gdf.crs),params=params,summary=summary,outputs=outputs,elapsed_seconds=elapsed)
         territorial_monitoring=monitor_all_objects(results.parent)
         summary["territorial_monitoring"]=territorial_monitoring
+        territorial_alerting=process_watchlist_alerts(job_id,territorial_monitoring["results"])
+        summary["territorial_alerting"]=territorial_alerting
+        append_event(job_id,"territorial_alerting_completed",stage="territorial_alerting",severity="warning" if territorial_alerting["active"] else "info",payload=territorial_alerting)
         append_event(job_id,"territorial_monitoring_completed",stage="territorial_monitoring",payload={"objects":territorial_monitoring["objects"],"changed":territorial_monitoring["changed"]})
         append_event(job_id,"analysis_completed",stage="runtime",payload={"elapsed_seconds":elapsed,"rows":len(scored),"domain":domain})
         _progress(job_id,100,"complete",f"Analysis completed in {elapsed:.1f}s")
@@ -248,6 +251,40 @@ def health():
 
 
 
+
+
+@app.get("/v1/operations")
+def territorial_operations_center():
+    return operations_center()
+
+@app.get("/v1/watchlists")
+def territorial_watchlists():
+    return {"watchlists":list_watchlists()}
+
+@app.post("/v1/watchlists")
+def territorial_create_watchlist(payload:dict):
+    if not payload.get("name"):raise HTTPException(400,"name is required")
+    try:return create_watchlist(payload["name"],payload.get("domain"))
+    except Exception as e:raise HTTPException(409,str(e))
+
+@app.post("/v1/watchlists/{watchlist_id}/objects/{object_key}")
+def territorial_subscribe(watchlist_id:int,object_key:str):
+    try:return subscribe_object(watchlist_id,object_key)
+    except KeyError:raise HTTPException(404,"Territorial object not found")
+
+@app.get("/v1/watchlists/{watchlist_id}/rules")
+def territorial_rules(watchlist_id:int):
+    return {"rules":list_alert_rules(watchlist_id)}
+
+@app.post("/v1/watchlists/{watchlist_id}/rules")
+def territorial_create_rule(watchlist_id:int,payload:dict):
+    try:return create_alert_rule(watchlist_id,payload["name"],payload["metric"],payload["operator"],float(payload["threshold"]),payload["severity"])
+    except KeyError as e:raise HTTPException(400,f"Missing {e}")
+    except ValueError as e:raise HTTPException(400,str(e))
+
+@app.get("/v1/incidents")
+def territorial_incidents(status:str="",limit:int=200):
+    return {"incidents":list_incidents(status or None,limit)}
 
 @app.get("/v1/territorial/monitoring/{object_key}")
 def territorial_monitoring(object_key:str):
@@ -451,7 +488,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["operations_center","territorial_watchlists","alert_rules","alert_deduplication","alert_escalation","alert_resolution","territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
