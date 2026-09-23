@@ -40,9 +40,10 @@ from .incidents import get_incident_case, update_incident_management, add_incide
 from .migrations import migrate_all, migration_status
 from .data_quality import assess_data_quality, quality_gate
 from .earth_observation import sensor_catalog, index_catalog, search_scenes, search_geometry, build_index_plan
+from .computational_intelligence import euclidean_intelligence, compare_to_baseline
 from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts, monitor_object, monitor_all_objects, monitoring_history, territorial_monitoring_dashboard, create_watchlist, list_watchlists, subscribe_object, create_alert_rule, list_alert_rules, process_watchlist_alerts, list_incidents, operations_center
 
-VERSION="3.0.0"
+VERSION="3.1.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 MIGRATION_RESULT=migrate_all()
@@ -266,6 +267,29 @@ def health():
 
 
 
+
+
+@app.post("/v1/intelligence/euclidean")
+def euclidean_model(payload:dict):
+    try:
+        rows=payload.get("rows") or []
+        features=payload.get("features") or []
+        if not rows:raise ValueError("rows are required")
+        frame=pd.DataFrame(rows)
+        spatial=payload.get("spatial_columns")
+        spatial_columns=tuple(spatial) if spatial else None
+        scored,summary=euclidean_intelligence(
+            frame,features,spatial_columns,
+            float(payload.get("spatial_weight",.25)),
+            float(payload.get("feature_weight",.75)),
+        )
+        return {"summary":summary,"rows":scored.replace({np.nan:None}).to_dict(orient="records")}
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/intelligence/euclidean/baseline")
+def euclidean_baseline_compare(payload:dict):
+    try:return compare_to_baseline(payload["current"],payload["baseline"],payload["features"])
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
 
 @app.get("/v1/earth-observation/catalog")
 def earth_observation_catalog():
@@ -580,7 +604,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["earth_observation_stac","sentinel_2","landsat","modis","spectral_index_planning","territorial_scene_search","data_quality_engine","geometry_quality","coordinate_validation","quality_gate","permutation_lisa","significant_hotspots","spatial_density","spatial_outliers","incident_management","territorial_intelligence_briefs","incident_ownership","acknowledgement","investigation_timeline","operations_center","territorial_watchlists","alert_rules","alert_deduplication","alert_escalation","alert_resolution","territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["euclidean_intelligence","euclidean_baseline_distance","earth_observation_stac","sentinel_2","landsat","modis","spectral_index_planning","territorial_scene_search","data_quality_engine","geometry_quality","coordinate_validation","quality_gate","permutation_lisa","significant_hotspots","spatial_density","spatial_outliers","incident_management","territorial_intelligence_briefs","incident_ownership","acknowledgement","investigation_timeline","operations_center","territorial_watchlists","alert_rules","alert_deduplication","alert_escalation","alert_resolution","territorial_monitoring","territorial_baselines","territorial_change_detection","automatic_object_linking","territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
