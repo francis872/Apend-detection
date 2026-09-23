@@ -310,6 +310,10 @@ async function poll(id){
 function killCharts(){charts.forEach(c=>c.destroy());charts=[]}
 function render(j){
   let s=j.summary.detector;
+  if(j.orchestration&&$('orchestratorPanel')){
+    const o=j.orchestration;
+    $('orchestratorPanel').innerHTML='<b>Meridian Orchestrator · '+o.status+'</b><p class="k">'+o.decisions.length+' decisions · '+o.warnings+' warnings/adaptations</p><div>'+o.decisions.slice(-8).map(d=>'<span class="methodTag">'+d.stage+' · '+d.status+' · '+d.action+'</span>').join('')+'</div>';
+  }
   if(j.domain_profile&&$('domainHint')) {
     $('domainHint').textContent=j.domain_profile.pack.name+' · '+j.domain_profile.matched_variables.length+' domain variables matched · governance '+j.domain_profile.governance;
     const dc=j.domain_profile.data_contract;
