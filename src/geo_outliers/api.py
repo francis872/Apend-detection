@@ -36,9 +36,9 @@ from .integrations import integration_status, fetch_open_meteo, fetch_nasa_firms
 from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
-from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer
+from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts
 
-VERSION="2.2.0"
+VERSION="2.3.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -244,6 +244,48 @@ def health():
     return {"status":"ok","service":"Meridian","version":VERSION,"event_store":event_stats(),"active_jobs":sum(1 for x in PROGRESS.values() if x.get("percent",100)<100)}
 
 
+
+@app.get("/v1/territorial/objects")
+def territorial_objects(active_only:bool=True,limit:int=200):
+    return {"objects":list_territorial_objects(active_only,limit)}
+
+@app.post("/v1/territorial/objects")
+def territorial_create_object(payload:dict):
+    for k in ("name","object_type","geometry"):
+        if not payload.get(k):raise HTTPException(400,f"{k} is required")
+    try:return create_territorial_object(payload["name"],payload["object_type"],payload["geometry"],payload.get("job_id"),payload.get("metadata"),payload.get("object_key"))
+    except ValueError as e:raise HTTPException(400,str(e))
+
+@app.get("/v1/territorial/objects/{object_key}/versions")
+def territorial_object_versions(object_key:str):
+    return {"versions":object_versions(object_key)}
+
+@app.post("/v1/territorial/objects/{object_key}/evaluate/{job_id}")
+def territorial_evaluate_object(object_key:str,job_id:str):
+    objs=[x for x in list_territorial_objects(True,500) if x["object_key"]==object_key]
+    if not objs:raise HTTPException(404,"Territorial object not found")
+    try:return evaluate_object(RUNTIME/job_id,objs[0])
+    except FileNotFoundError as e:raise HTTPException(404,str(e))
+
+@app.post("/v1/territorial/geometry/buffer")
+def territorial_buffer(payload:dict):
+    try:return {"geometry":buffer_geometry(payload["geometry"],float(payload["distance_m"]))}
+    except (KeyError,ValueError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/territorial/geometry/corridor")
+def territorial_corridor(payload:dict):
+    try:return {"geometry":corridor_geometry(payload["coordinates"],float(payload["distance_m"]))}
+    except (KeyError,ValueError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/territorial/geometry/intersection")
+def territorial_intersection(payload:dict):
+    try:return {"geometry":intersect_geometries(payload["a"],payload["b"])}
+    except (KeyError,ValueError) as e:raise HTTPException(400,str(e))
+
+@app.get("/v1/territorial/alerts")
+def territorial_alerts(object_key:str="",limit:int=200):
+    return {"alerts":list_territorial_alerts(object_key or None,limit)}
+
 @app.post("/v1/territorial/query/{job_id}")
 def territorial_query(job_id:str,geometry:dict):
     try:
@@ -378,7 +420,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["territorial_objects","versioned_geometries","buffers","corridors","layer_intersections","territorial_findings","territorial_alerts","polygon_queries","statistical_region_compare","persistent_territorial_layers","territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
