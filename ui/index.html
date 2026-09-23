@@ -24,6 +24,9 @@ h1{margin:4px 0;font-size:28px;font-weight:500;letter-spacing:-.02em}.eyebrow{co
 <a href="#connections" data-view="connections" data-label="NASA FIRMS">⌁ <span>NASA FIRMS</span></a>
 <a href="#connections" data-view="connections" data-label="External APIs">↗ <span>External APIs</span></a>
 <a href="#data" data-view="data" data-label="Data History">◷ <span>Data History</span></a>
+<div class="navLabel">TERRITORIAL</div>
+<a href="#territorial-explorer" data-view="territorial-explorer" data-label="Territorial Explorer">◎ <span>Territorial Explorer</span></a>
+<a href="#corridor-explorer" data-view="corridor-explorer" data-label="Corridor Explorer">⌁ <span>Corridor Explorer</span></a>
 <div class="navLabel">ANALYSIS</div>
 <a href="#detect" data-view="detect" data-label="Detect">◎ <span>Detect</span></a>
 <a href="#probability" data-view="probability" data-label="Probability">∿ <span>Probability</span></a>
@@ -118,6 +121,20 @@ h1{margin:4px 0;font-size:28px;font-weight:500;letter-spacing:-.02em}.eyebrow{co
 <label>Producto <select id="firmsSource"><option>VIIRS_NOAA21_NRT</option><option>VIIRS_NOAA20_NRT</option><option>VIIRS_SNPP_NRT</option><option>MODIS_NRT</option></select></label>
 <button id="runFirms">Analizar NASA FIRMS en vivo</button>
 </div><div class="k" id="liveStatus" style="margin-top:8px">Área inicial: Colombia aproximada. Requiere NASA_FIRMS_MAP_KEY.</div></section><section class="card" id="intelligencePanel"><div class="head"><div><b>Meridian Intelligence</b><div class="k">Machine-generated findings grounded in the active statistical, spatial and temporal analysis.</div></div></div><div id="insightFeed" class="compare" style="margin-top:10px"><div class="pill">Run an analysis to generate intelligence.</div></div></section><section class="card" id="exports"><b>5 · Report & Export</b><div class="downloads" id="downloads"></div></section>
+<section class="card moduleView" data-module-view="territorial-explorer" style="display:none">
+<div class="eyebrow">TERRITORIAL INTELLIGENCE</div><h1>Territorial Explorer</h1>
+<div class="territorialTools"><div><div id="territorialExplorerMap" style="height:590px;border-radius:12px"></div>
+<div class="card"><b>TIME LINE</b><input id="territorialTime" class="timelineRange" type="range" min="0" max="100" value="100"><div id="territorialTimeLabel" class="muted">Latest available period</div></div></div>
+<div class="territorialPanel"><h3>Layers</h3><div class="layerToggle" id="territorialLayerToggles">
+<button data-layer="social">Social</button><button data-layer="economic">Economic</button><button data-layer="ecological">Ecological</button><button data-layer="satellite">Satellite</button><button data-layer="land">Land Use</button><button data-layer="infrastructure">Infrastructure</button><button data-layer="events">Events</button><button data-layer="networks">Networks</button><button data-layer="corridors">Corridors</button></div>
+<h3 style="margin-top:18px">Territorial Profile</h3><div id="territorialProfile" class="muted">Select a territory, event, node or corridor on the map.</div>
+<h3 style="margin-top:18px">Evidence</h3><div id="territorialEvidence" class="muted">Every analytical result keeps method, period, CRS, sources and limitations.</div></div></div></section>
+
+<section class="card moduleView" data-module-view="corridor-explorer" style="display:none">
+<div class="eyebrow">TERRITORIAL INTELLIGENCE</div><h1>Corridor Explorer</h1>
+<div class="territorialTools"><div><div id="corridorExplorerMap" style="height:590px;border-radius:12px"></div></div>
+<div class="territorialPanel"><button id="refreshCorridors">Refresh corridors</button><h3 style="margin-top:14px">Detected Corridors</h3><div id="corridorList" class="muted">Loading…</div>
+<h3 style="margin-top:18px">Spatial Evidence</h3><div id="corridorEvidence" class="muted">Select a corridor.</div></div></div></section>
 </main><script>
 const $=id=>document.getElementById(id),fmt=n=>Number.isFinite(+n)?(+n).toLocaleString('es-CO',{maximumFractionDigits:4}):'—';
 let charts=[],map=L.map('map').setView([4.6,-74.1],5),layer=L.layerGroup().addTo(map),mapData=[];
@@ -551,4 +568,31 @@ $('runFirms').onclick=async()=>{
     $('stage').textContent='error';$('status').textContent='NASA FIRMS: '+e.message;$('liveStatus').textContent=e.message;
   }finally{$('runFirms').disabled=false}
 };
-</script><script src="/ui/meridian_views.js"></script></main></div></div></body></html>
+</script><script src="/ui/meridian_views.js"></script></main></div></div><script>
+let territorialExplorerMap=null,corridorExplorerMap=null,corridorLayerGroup=null;
+function ensureTerritorialExplorer(){
+ if(!territorialExplorerMap){territorialExplorerMap=L.map('territorialExplorerMap').setView([4.6,-74.08],6);L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OpenStreetMap © CARTO'}).addTo(territorialExplorerMap);}
+ setTimeout(()=>territorialExplorerMap.invalidateSize(),100);
+}
+function ensureCorridorExplorer(){
+ if(!corridorExplorerMap){corridorExplorerMap=L.map('corridorExplorerMap').setView([4.6,-74.08],6);L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OpenStreetMap © CARTO'}).addTo(corridorExplorerMap);corridorLayerGroup=L.layerGroup().addTo(corridorExplorerMap);}
+ setTimeout(()=>corridorExplorerMap.invalidateSize(),100);loadCorridors();
+}
+async function loadCorridors(){
+ if(!corridorExplorerMap)return;const box=document.getElementById('corridorList');
+ try{const r=await fetch('/v1/territorial/corridors');const data=await r.json();corridorLayerGroup.clearLayers();const cs=data.corridors||[];
+ box.innerHTML=cs.length?'':'No persisted corridors yet.';
+ cs.forEach(c=>{const row=document.createElement('div');row.className='alertItem';row.innerHTML='<b>'+c.corridor_id+'</b><br>Support '+Number(c.confidence||0).toFixed(3)+' · p '+(c.validation_pvalue==null?'n/a':Number(c.validation_pvalue).toFixed(3));row.onclick=()=>showCorridor(c);box.appendChild(row);
+ const layer=L.geoJSON(c.geometry,{style:{weight:5,opacity:.85}}).addTo(corridorLayerGroup);layer.on('click',()=>showCorridor(c));});
+ if(cs.length){const b=corridorLayerGroup.getBounds();if(b.isValid())corridorExplorerMap.fitBounds(b.pad(.12));}
+ }catch(e){box.textContent='Corridor API unavailable: '+e.message;}
+}
+function showCorridor(c){
+ document.getElementById('corridorEvidence').innerHTML='<b>Method</b><br>'+c.method+'<br><br><b>Confidence / support</b><br>'+Number(c.confidence||0).toFixed(4)+' (not probability)<br><br><b>Validation p-value</b><br>'+(c.validation_pvalue==null?'Not available':Number(c.validation_pvalue).toFixed(4))+'<br><br><b>Network metrics</b><pre style="white-space:pre-wrap">'+JSON.stringify(c.metrics||{},null,2)+'</pre><b>Data sources</b><pre style="white-space:pre-wrap">'+JSON.stringify(c.data_sources||[],null,2)+'</pre><span class="muted">No causal or social-conflict conclusion is inferred.</span>';
+}
+document.getElementById('refreshCorridors')?.addEventListener('click',loadCorridors);
+document.querySelectorAll('[data-view="territorial-explorer"]').forEach(x=>x.addEventListener('click',()=>setTimeout(ensureTerritorialExplorer,50)));
+document.querySelectorAll('[data-view="corridor-explorer"]').forEach(x=>x.addEventListener('click',()=>setTimeout(ensureCorridorExplorer,50)));
+if(location.hash==='#territorial-explorer')setTimeout(ensureTerritorialExplorer,300);
+if(location.hash==='#corridor-explorer')setTimeout(ensureCorridorExplorer,300);
+</script></body></html>
