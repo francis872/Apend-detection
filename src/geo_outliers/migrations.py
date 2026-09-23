@@ -184,6 +184,42 @@ TERRITORIAL_MIGRATIONS=[
     CREATE INDEX IF NOT EXISTS idx_lineage_dataset ON data_lineage(dataset_id,id);
     CREATE INDEX IF NOT EXISTS idx_spatial_events_date ON spatial_events(date);
     """),
+    (5,"corridor_explorer_persistence","""
+    ALTER TABLE corridor_results ADD COLUMN validation_pvalue REAL;
+    ALTER TABLE corridor_results ADD COLUMN metrics_json TEXT NOT NULL DEFAULT '{}';
+    ALTER TABLE corridor_results ADD COLUMN status TEXT NOT NULL DEFAULT 'active';
+    CREATE INDEX IF NOT EXISTS idx_corridor_confidence ON corridor_results(status,confidence);
+    """),
+    (6,"territorial_fusion_feature_store","""
+    CREATE TABLE IF NOT EXISTS territorial_feature_vectors(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      territory_id TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      vector_json TEXT NOT NULL,
+      groups_json TEXT NOT NULL,
+      source_refs_json TEXT NOT NULL,
+      lineage_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(territory_id,timestamp)
+    );
+    CREATE INDEX IF NOT EXISTS idx_feature_vectors_territory_time ON territorial_feature_vectors(territory_id,timestamp);
+
+    CREATE TABLE IF NOT EXISTS land_use_divergence(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      territory_id TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      historical_use TEXT,
+      observed_use TEXT,
+      planned_use TEXT,
+      satellite_classification TEXT,
+      divergence_score REAL NOT NULL,
+      divergence_level TEXT NOT NULL,
+      evidence_json TEXT NOT NULL,
+      sources_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_land_divergence_territory_time ON land_use_divergence(territory_id,timestamp);
+    """),
 ]
 
 
