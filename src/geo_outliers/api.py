@@ -37,7 +37,7 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 
-VERSION="2.0.0"
+VERSION="2.1.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
 PROGRESS:dict[str,dict]={}
@@ -88,9 +88,19 @@ def _map_points(scored,max_points=5000):
     pts=[]
     for idx,row in geo.iterrows():
         if row.geometry is None or row.geometry.is_empty: continue
+        ts=None
+        for tc in ("timestamp","datetime","ACQ_DATE","date","fecha"):
+            if tc in row.index:
+                try:
+                    parsed=pd.to_datetime(row.get(tc),errors="coerce")
+                    if pd.notna(parsed): ts=parsed.isoformat()
+                except Exception: pass
+                if ts: break
         pts.append({"id":int(idx),"lat":float(row.geometry.y),"lon":float(row.geometry.x),
           "level":str(row.get("outlier_level","normal")),"status":str(row.get("record_status","normal")),
-          "score":float(row.get("outlier_score",0)),"reason":str(row.get("anomaly_reason",""))})
+          "score":float(row.get("outlier_score",0)),"reason":str(row.get("anomaly_reason","")),
+          "timestamp":ts,"spatial":float(row.get("score_spatial",0)),"temporal":float(row.get("score_temporal",0)),
+          "probability":float(row.get("score_probability",0)),"consensus":int(row.get("consensus_methods",0))})
     return pts
 
 
@@ -332,7 +342,7 @@ def orchestrator_policy():
 
 @app.get("/v1/capabilities")
 def capabilities():
-    return {"engine":"Meridian","version":VERSION,"analysis":["experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
+    return {"engine":"Meridian","version":VERSION,"analysis":["territorial_workspace","region_selection","region_compare","timeline_filters","alert_rules","experiment_history","drift_monitoring","promotion_gates","algorithm_governance","champion_challenger","rollback","event_store","health_monitoring","bounded_retry","fallback_recovery","orchestrator","quality_gates","adaptive_strategy","autopilot","auto_enrichment","provenance","domain_inference","semantic_mapping","data_contract","probability","spatial","temporal","compare","explain"],"delivery":["workspace","api","exports"],"ingestion":["zip_shapefile","shapefile","geopackage","geojson","json","csv","excel","parquet"],"domain_packs":[x["id"] for x in list_domain_packs()]}
 
 @app.get("/integrations")
 def integrations(): return integration_status()
