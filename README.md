@@ -518,3 +518,19 @@ El endpoint territorial puede recibir un baseline previo. Cuando existen al meno
 Pipeline 3.2: STAC -> COG territorial window -> product scaling -> cloud/QA mask -> NDVI/NDMI/NBR/NDWI/LST -> zonal statistics -> EO feature vector -> robust Euclidean baseline distance -> change evidence.
 
 Pendiente para el siguiente bloque: persistencia de EO snapshots por Territorial Object, baseline temporal automatico, change detection multiescena y conexion directa con Watchlists/Alerts.
+
+
+## Meridian 4.1 - Territorial Network & Corridor Intelligence
+
+The socio-ecological engine now includes a graph layer that models territorial nodes and explicit or proximity-derived edges. It computes degree, betweenness and closeness centrality, connected components, weighted shortest paths and network density. NetworkX is the local graph engine; the API contract is designed so a future PostGIS/pgRouting backend can preserve the same analytical surface.
+
+The corridor engine no longer relies only on geographic proximity. Candidate corridors combine KDE-derived event density, graph connectivity, minimum-spanning-tree continuity and temporal support. Candidate geometry follows the connected network through an MST rather than a convex polygon. A deterministic permutation procedure reports a validation p-value against a limited density-null model.
+
+Endpoints:
+- POST /v1/territorial/network/build
+- POST /v1/territorial/network/shortest-path
+- POST /v1/territorial/corridors/detect
+
+Scientific policy: corridor confidence is a composite support score, not probability. Statistical validation is reported separately. Meridian does not infer causality, political meaning or social conflict from a corridor. Interpretation remains an analyst task.
+
+Next integration surface: Spatial Join service endpoints, persistence/versioning of graphs and corridor results, and Territorial/Corridor Explorer map UI.
