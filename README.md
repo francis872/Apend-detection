@@ -443,3 +443,14 @@ Esta version detiene temporalmente la expansion funcional para reforzar la base 
 - **Migration idempotency test:** una segunda aplicacion del mismo esquema no vuelve a ejecutar migraciones.
 
 La suite CI existente ejecuta pytest -q; estas pruebas quedan incluidas automaticamente. La version 2.7 prioriza compatibilidad regresiva y auditabilidad antes de agregar nuevos modulos.
+
+
+## Meridian 2.8 - Spatial Intelligence
+
+Meridian refuerza el nucleo espacial antes de ampliar nuevos modulos. La validacion espacial incorpora Local Moran/LISA con 199 permutaciones deterministas, p-values empiricos, clasificacion HH/LL/HL/LH solo cuando la evidencia local alcanza p <= 0.05 y un componente de densidad kNN normalizado.
+
+Cada observacion puede exportar local_moran_i, local_moran_pvalue, lisa_cluster, lisa_significant y spatial_density_rank. El mapa API tambien entrega cluster LISA, p-value y densidad para construir capas visuales posteriores.
+
+El score espacial combina residual vecinal, spatial LOF, magnitud Local Moran y densidad. Los hotspots/coldspots reportados en spatial_validation pasan a significar HH/LL localmente significativos bajo el procedimiento de permutacion implementado, en lugar de simples coincidencias de signo.
+
+Importante: los p-values son evidencia inferencial bajo el esquema kNN/permutacion elegido; no prueban causalidad y son sensibles a la definicion de vecindad y al numero de permutaciones.
