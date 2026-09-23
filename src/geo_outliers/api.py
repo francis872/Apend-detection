@@ -37,11 +37,13 @@ from .report_html import write_html_report
 from .storage import get_analysis, list_analyses, save_analysis
 from .validation import ablation_sensitivity, bootstrap_distribution_stability
 from .incidents import get_incident_case, update_incident_management, add_incident_note, build_intelligence_brief, operations_cases
+from .migrations import migrate_all, migration_status
 from .territorial import load_analysis_layer, select_polygon, summarize_region, compare_regions, save_layer, list_layers, delete_layer, create_territorial_object, list_territorial_objects, object_versions, buffer_geometry, corridor_geometry, intersect_geometries, evaluate_object, list_territorial_alerts, monitor_object, monitor_all_objects, monitoring_history, territorial_monitoring_dashboard, create_watchlist, list_watchlists, subscribe_object, create_alert_rule, list_alert_rules, process_watchlist_alerts, list_incidents, operations_center
 
-VERSION="2.6.0"
+VERSION="2.7.0"
 app=FastAPI(title="Meridian API",version=VERSION)
 RUNTIME=Path("runtime/jobs"); RUNTIME.mkdir(parents=True,exist_ok=True)
+MIGRATION_RESULT=migrate_all()
 PROGRESS:dict[str,dict]={}
 
 
@@ -248,11 +250,20 @@ def _run_job(job_id,inputs,results,probability_feature,variables,noise_level,qua
 
 @app.get("/health")
 def health():
-    return {"status":"ok","service":"Meridian","version":VERSION,"event_store":event_stats(),"active_jobs":sum(1 for x in PROGRESS.values() if x.get("percent",100)<100)}
+    return {"status":"ok","service":"Meridian","version":VERSION,"event_store":event_stats(),"migrations":migration_status(),"active_jobs":sum(1 for x in PROGRESS.values() if x.get("percent",100)<100)}
 
 
 
 
+
+
+@app.get("/v1/system/migrations")
+def system_migrations():
+    return migration_status()
+
+@app.post("/v1/system/migrations")
+def system_run_migrations():
+    return migrate_all()
 
 @app.get("/v1/operations")
 def territorial_operations_center():
