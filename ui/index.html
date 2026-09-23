@@ -311,8 +311,8 @@ function killCharts(){charts.forEach(c=>c.destroy());charts=[]}
 function render(j){
   let s=j.summary.detector;
   if(j.algorithm_governance&&$('governancePanel')){
-    const g=j.algorithm_governance,c=g.champion||{},ch=g.challenger||null;
-    $('governancePanel').innerHTML='<b>Algorithm Governance · '+g.decision+'</b><p class="k">Champion: '+((c.config||{}).name||c.name||'Meridian Ensemble')+' '+((c.config||{}).version||c.version||'')+'</p>'+(ch?'<span class="methodTag">Challenger '+((ch.config||{}).name||ch.name)+' '+((ch.config||{}).version||ch.version)+'</span>':'<span class="methodTag">No active challenger</span>')+'<p class="k">'+g.reason+'</p>';
+    const g=j.algorithm_governance,c=g.champion||{},ch=g.challenger||null,d=g.drift||{},pg=g.promotion_gate||{};
+    $('governancePanel').innerHTML='<b>Algorithm Governance · '+g.decision+'</b><p class="k">Champion: '+((c.config||{}).name||c.name||'Meridian Ensemble')+' '+((c.config||{}).version||c.version||'')+'</p>'+(ch?'<span class="methodTag">Challenger '+((ch.config||{}).name||ch.name)+' '+((ch.config||{}).version||ch.version)+'</span>':'<span class="methodTag">No active challenger</span>')+'<span class="methodTag">Drift '+(d.status||'n/a')+' · '+Math.round((d.score||0)*100)+'%</span><span class="methodTag">Promotion '+(pg.eligible?'eligible':'blocked')+'</span><p class="k">'+g.reason+(d.signals&&d.signals.length?' · '+d.signals.length+' drift signals':'')+'</p>';
   }
   if(j.orchestration&&$('orchestratorPanel')){
     const o=j.orchestration;
