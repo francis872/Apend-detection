@@ -44,6 +44,8 @@ from .computational_intelligence import euclidean_intelligence, compare_to_basel
 from .raster_processing import process_scene
 from .socio_ecological import register_dataset, list_datasets, lineage, create_event, territorial_snapshot, snapshots, territorial_indicators, correlation, distance_model, hotspot, detect_corridors
 from .network_corridor import build_territorial_graph, shortest_path, detect_network_corridors
+from .navigation import build_navigation_graph, route as navigation_route, route_alternatives, apply_traffic_updates
+from .positioning import PositionFix, snap_to_navigation_graph, build_turn_by_turn, navigation_progress
 from .spatial_operations import spatial_operation
 from .corridor_store import save_corridors, list_corridors, get_corridor
 from .territorial_fusion import fuse_features, feature_history, temporal_profile, land_use_divergence
@@ -416,6 +418,81 @@ def territorial_distance_api(payload:dict):
 def territorial_hotspots_api(payload:dict):
     try:return hotspot(payload["points"],payload.get("value_key","value"),payload.get("method","lisa"),payload.get("bandwidth"))
     except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/position/snap")
+def navigation_position_snap_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        fix=PositionFix(float(payload["latitude"]),float(payload["longitude"]),
+            None if payload.get("accuracy_m") is None else float(payload["accuracy_m"]),
+            None if payload.get("speed_mps") is None else float(payload["speed_mps"]),
+            None if payload.get("heading_deg") is None else float(payload["heading_deg"]),
+            payload.get("timestamp"))
+        return snap_to_navigation_graph(graph,fix,float(payload.get("max_distance_m",100)))
+    except (ValueError,KeyError,TypeError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/turn-by-turn")
+def navigation_turn_by_turn_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        result=navigation_route(graph,str(payload["source"]),str(payload["target"]),payload.get("weights"),payload.get("constraints"),payload.get("algorithm","dijkstra"))
+        guidance=build_turn_by_turn(graph,result)
+        guidance["route"]=result
+        return guidance
+    except (ValueError,KeyError,TypeError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/progress")
+def navigation_progress_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        result=navigation_route(graph,str(payload["source"]),str(payload["target"]),payload.get("weights"),payload.get("constraints"),payload.get("algorithm","dijkstra"))
+        fix=PositionFix(float(payload["latitude"]),float(payload["longitude"]),
+            None if payload.get("accuracy_m") is None else float(payload["accuracy_m"]),
+            None if payload.get("speed_mps") is None else float(payload["speed_mps"]),
+            None if payload.get("heading_deg") is None else float(payload["heading_deg"]),
+            payload.get("timestamp"))
+        progress=navigation_progress(graph,result,fix,float(payload.get("off_route_threshold_m",80)))
+        if progress["reroute_required"] and payload.get("reroute",True):
+            snapped=snap_to_navigation_graph(graph,fix,float(payload.get("reroute_snap_m",250)))
+            if snapped["matched"]:
+                rerouted=navigation_route(graph,str(snapped["node_id"]),str(payload["target"]),payload.get("weights"),payload.get("constraints"),payload.get("algorithm","dijkstra"))
+                progress["rerouted"]=rerouted
+                progress["guidance"]=build_turn_by_turn(graph,rerouted)
+        return progress
+    except (ValueError,KeyError,TypeError) as e:raise HTTPException(400,str(e))
+
+
+@app.post("/v1/navigation/graph")
+def navigation_graph_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        return {"nodes":list(graph["nodes"].values()),"edges":graph["edges"],"directed":graph["directed"]}
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/route")
+def navigation_route_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        return navigation_route(graph,str(payload["source"]),str(payload["target"]),payload.get("weights"),payload.get("constraints"),payload.get("algorithm","dijkstra"))
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/routes")
+def navigation_routes_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        return route_alternatives(graph,str(payload["source"]),str(payload["target"]),payload.get("profiles"))
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/traffic/recalculate")
+def navigation_traffic_recalculate_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        graph=apply_traffic_updates(graph,payload.get("updates",[]))
+        result=navigation_route(graph,str(payload["source"]),str(payload["target"]),payload.get("weights"),payload.get("constraints"),payload.get("algorithm","dijkstra"))
+        result["traffic_updates_applied"]=graph["traffic_updates_applied"]
+        return result
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
 
 @app.post("/v1/territorial/network/build")
 def territorial_network_build(payload:dict):
