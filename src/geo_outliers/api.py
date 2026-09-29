@@ -44,6 +44,7 @@ from .computational_intelligence import euclidean_intelligence, compare_to_basel
 from .raster_processing import process_scene
 from .socio_ecological import register_dataset, list_datasets, lineage, create_event, territorial_snapshot, snapshots, territorial_indicators, correlation, distance_model, hotspot, detect_corridors
 from .network_corridor import build_territorial_graph, shortest_path, detect_network_corridors
+from .navigation import build_navigation_graph, route as navigation_route, route_alternatives, apply_traffic_updates
 from .spatial_operations import spatial_operation
 from .corridor_store import save_corridors, list_corridors, get_corridor
 from .territorial_fusion import fuse_features, feature_history, temporal_profile, land_use_divergence
@@ -416,6 +417,38 @@ def territorial_distance_api(payload:dict):
 def territorial_hotspots_api(payload:dict):
     try:return hotspot(payload["points"],payload.get("value_key","value"),payload.get("method","lisa"),payload.get("bandwidth"))
     except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/graph")
+def navigation_graph_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        return {"nodes":list(graph["nodes"].values()),"edges":graph["edges"],"directed":graph["directed"]}
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/route")
+def navigation_route_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        return navigation_route(graph,str(payload["source"]),str(payload["target"]),payload.get("weights"),payload.get("constraints"),payload.get("algorithm","dijkstra"))
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/routes")
+def navigation_routes_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        return route_alternatives(graph,str(payload["source"]),str(payload["target"]),payload.get("profiles"))
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/navigation/traffic/recalculate")
+def navigation_traffic_recalculate_api(payload:dict):
+    try:
+        graph=build_navigation_graph(payload["nodes"],payload["edges"],bool(payload.get("directed",True)))
+        graph=apply_traffic_updates(graph,payload.get("updates",[]))
+        result=navigation_route(graph,str(payload["source"]),str(payload["target"]),payload.get("weights"),payload.get("constraints"),payload.get("algorithm","dijkstra"))
+        result["traffic_updates_applied"]=graph["traffic_updates_applied"]
+        return result
+    except (ValueError,KeyError) as e:raise HTTPException(400,str(e))
+
 
 @app.post("/v1/territorial/network/build")
 def territorial_network_build(payload:dict):
