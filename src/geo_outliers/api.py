@@ -44,6 +44,7 @@ from .computational_intelligence import euclidean_intelligence, compare_to_basel
 from .raster_processing import process_scene
 from .socio_ecological import register_dataset, list_datasets, lineage, create_event, territorial_snapshot, snapshots, territorial_indicators, correlation, distance_model, hotspot, detect_corridors
 from .network_corridor import build_territorial_graph, shortest_path, detect_network_corridors
+from .sincronia_api import analyze_property_context, compare_property_contexts, property_accessibility, sincronia_capabilities
 from .spatial_operations import spatial_operation
 from .corridor_store import save_corridors, list_corridors, get_corridor
 from .territorial_fusion import fuse_features, feature_history, temporal_profile, land_use_divergence
@@ -728,6 +729,42 @@ def system_health():
     failed=sum(1 for x in history if x.get("status")=="failed")
     complete=sum(1 for x in history if x.get("status")=="complete")
     return {"service":"Meridian","version":VERSION,"jobs":{"running":running,"failed":failed,"complete":complete},"events":event_stats(),"integrations":integration_status()}
+
+@app.get("/v1/integrations/sincronia/capabilities")
+def sincronia_capabilities_api():
+    return sincronia_capabilities()
+
+@app.post("/v1/integrations/sincronia/property/context/{job_id}")
+def sincronia_property_context_api(job_id:str,payload:dict):
+    try:
+        return analyze_property_context(
+            RUNTIME/job_id,
+            str(payload["external_id"]),
+            float(payload["latitude"]),
+            float(payload["longitude"]),
+            float(payload.get("radius_m",1000)),
+            payload.get("metadata"),
+        )
+    except FileNotFoundError as e:raise HTTPException(404,str(e))
+    except (ValueError,KeyError,TypeError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/integrations/sincronia/properties/compare/{job_id}")
+def sincronia_properties_compare_api(job_id:str,payload:dict):
+    try:
+        return compare_property_contexts(
+            RUNTIME/job_id,
+            payload["properties"],
+            float(payload.get("radius_m",1000)),
+        )
+    except FileNotFoundError as e:raise HTTPException(404,str(e))
+    except (ValueError,KeyError,TypeError) as e:raise HTTPException(400,str(e))
+
+@app.post("/v1/integrations/sincronia/accessibility")
+def sincronia_accessibility_api(payload:dict):
+    try:
+        return property_accessibility(payload["graph"],str(payload["source_node"]),payload["targets"])
+    except (ValueError,KeyError,TypeError) as e:raise HTTPException(400,str(e))
+
 
 @app.get("/v1/domains")
 def domains(): return {"engine":"Meridian","version":VERSION,"domains":list_domain_packs()}
